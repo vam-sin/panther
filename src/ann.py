@@ -26,9 +26,6 @@ from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
 
 tf.keras.backend.clear_session()
-
-
-
 config = ConfigProto()
 config.gpu_options.allow_growth = True
 gpu_options = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.333)
@@ -64,6 +61,9 @@ if gpus:
 
 # # biovec model
 # vectorizer = biovec.models.load_protvec('SSG5.biovec')
+
+for i in range(len(X)):
+    vec = vectorizer.to_vecs(X[i])
 
 # # X and y
 # X = list(ds["sequence"])
@@ -134,14 +134,14 @@ y_test = pickle.load(infile)
 infile.close()
 
 # label encode the y values
-le = preprocessing.LabelEncoder()
-y_train = le.fit_transform(y_train)
-y_test = le.fit_transform(y_test)
+# le = preprocessing.LabelEncoder()
+# y_train = le.fit_transform(y_train)
+# y_test = le.fit_transform(y_test)
 
-X_train, y_train = shuffle(X_train, y_train, random_state=42)
-print("Shuffled")
+# X_train, y_train = shuffle(X_train, y_train, random_state=42)
+# print("Shuffled")
 
-print("Loaded X and y")
+# print("Loaded X and y")
 
 # generator
 def bm_generator(X_t, y_t, batch_size):
@@ -221,25 +221,12 @@ def specificity(y_true, y_pred):
 
 # keras nn model
 input_ = Input(shape = (300,))
-# x = Conv1D(32, (3), padding = 'same', kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(input_)
-# x = LeakyReLU()(x)
-# x = BatchNormalization()(x)
-# x = Flatten()(x)
 x = Dense(1024, activation = "relu")(input_)
 x = BatchNormalization()(x)
 x = Dense(1024, activation = "relu")(x)
 x = BatchNormalization()(x)
 x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-# x = Dropout(0.9)(x)
-# x = Dense(1028, kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(x)
-# x = LeakyReLU()(x)
-# x = BatchNormalization()(x)
-# x = Dropout(0.7)(x)
-# x = Dense(1028, kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(x)
-# x = LeakyReLU()(x)
-# x = BatchNormalization()(x)
-# x = Dropout(0.7)(x)
+x = BatchNormalization()(x) 
 out = Dense(num_classes, activation = 'softmax')(x)
 model = Model(input_, out)
 
