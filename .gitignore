@@ -2,7 +2,10 @@
 /documents
 /papers
 /slides
-/src/domains
-/src/stockholm
-/src/SSG5.biovec
-/src/X_BioVec_100.pickle
+/figures
+/src/ann.h5
+/src/vnallapa@tails.cs.ucl.ac.uk 
+/src/basic_ml
+/src/ds_preprocess
+/src/knn
+/src/processed_data
