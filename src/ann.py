@@ -59,89 +59,63 @@ if gpus:
 # ds.columns = ["one", "two", "three", "sequence", "class"]
 # ds = ds.drop(columns = ["one", "two", "three"])
 
-# # biovec model
-# vectorizer = biovec.models.load_protvec('SSG5.biovec')
-
-for i in range(len(X)):
-    vec = vectorizer.to_vecs(X[i])
-
-# # X and y
 # X = list(ds["sequence"])
-# y = ds["class"]
+# y = list(ds["class"])
 
-# min-max normalization
+# # # biovec model
+# vectorizer = biovec.models.load_protvec('ds_preprocess/SSG5.biovec')
+
+# # min-max normalization
 # mini = -112.18917
 # maxi = 115.491425
 # sub = maxi - mini
 
-# # y process
-# le = preprocessing.LabelEncoder()
-# y = le.fit_transform(y)
-# num_classes = len(np.unique(y))
-# print(num_classes)
-# print("Loaded X and y")
+# X_vec = []
+# y_vec = []
 
-# X, y = shuffle(X, y, random_state=42)
-# print("Shuffled")
+# for i in range(len(X)):
+#     print(i, len(X))
+#     vec = vectorizer.to_vecs(X[i])
+#     vec = np.asarray(vec)
+#     vec = vec - mini
+#     vec /= sub
+#     X_vec.append(vec)
+#     y_vec.append(y[i])
 
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify = y)
-# print("Conducted Train-Test Split")
-
-# load X_train
-filename = 'X_train.pickle'
+filename = 'X_BV_100_SSG5_Full.pickle'
 # outfile = open(filename, 'wb')
-# pickle.dump(X_train, outfile)
+# pickle.dump(X_vec, outfile)
 # outfile.close()
-
 infile = open(filename,'rb')
-X_train = pickle.load(infile)
+X = pickle.load(infile)
 infile.close()
 
-# # reshape to convert to 1D 
-# X_train = np.reshape(X_train, (X_train.shape[0], 3, 100))
-
-# load X_test
-filename = 'X_test.pickle'
+filename = 'y_BV_100_SSG5_Full.pickle'
 # outfile = open(filename, 'wb')
-# pickle.dump(X_test, outfile)
+# pickle.dump(y_vec, outfile)
 # outfile.close()
-
 infile = open(filename,'rb')
-X_test = pickle.load(infile)
+y = pickle.load(infile)
 infile.close()
 
-# reshape to convert to 1D 
-# X_test = np.reshape(X_test, (X_test.shape[0], 3, 100))
+# y process
+le = preprocessing.LabelEncoder()
+y = le.fit_transform(y)
+num_classes = len(np.unique(y))
+print(num_classes)
+print("Loaded X and y")
 
-# load y_train
-filename = 'y_train.pickle'
-# outfile = open(filename, 'wb')
-# pickle.dump(y_train, outfile)
-# outfile.close()
+X, y = shuffle(X, y, random_state=42)
+print("Shuffled")
 
-infile = open(filename,'rb')
-y_train = pickle.load(infile)
-infile.close()
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+print("Conducted Train-Test Split")
 
-# load y_test
-filename = 'y_test.pickle'
-# outfile = open(filename, 'wb')
-# pickle.dump(y_test, outfile)
-# outfile.close()
+num_classes_train = len(np.unique(y_train))
+num_classes_test = len(np.unique(y_test))
+print(num_classes_train, num_classes_test)
 
-infile = open(filename,'rb')
-y_test = pickle.load(infile)
-infile.close()
-
-# label encode the y values
-# le = preprocessing.LabelEncoder()
-# y_train = le.fit_transform(y_train)
-# y_test = le.fit_transform(y_test)
-
-# X_train, y_train = shuffle(X_train, y_train, random_state=42)
-# print("Shuffled")
-
-# print("Loaded X and y")
+assert num_classes_test == num_classes_train, "Split not conducted correctly"
 
 # generator
 def bm_generator(X_t, y_t, batch_size):
@@ -156,13 +130,7 @@ def bm_generator(X_t, y_t, batch_size):
 			if val == len(X_t):
 				val = 0
 
-			# vec = np.asarray(vectorizer.to_vecs(X_t[val]))
-			
-			# # min-max scaling
-			# vec = vec - mini 
-			# vec /= sub
-
-			X_batch.append(X_t[val])
+			X_batch.append(np.reshape(X_t[val], (300)))
 			y_enc = np.zeros((num_classes))
 			y_enc[y_t[val]] = 1
 			y_batch.append(y_enc)
@@ -180,7 +148,7 @@ bs = 256
 train_gen = bm_generator(X_train, y_train, bs)
 test_gen = bm_generator(X_test, y_test, bs)
 
-num_classes = 3898
+# num_classes = 3898
 
 # sampled softmax loss
 class SampledSoftmaxLoss(object):
@@ -223,10 +191,13 @@ def specificity(y_true, y_pred):
 input_ = Input(shape = (300,))
 x = Dense(1024, activation = "relu")(input_)
 x = BatchNormalization()(x)
+x = Dropout(0.3)(x)
 x = Dense(1024, activation = "relu")(x)
 x = BatchNormalization()(x)
+x = Dropout(0.3)(x)
 x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x) 
+x = BatchNormalization()(x)
+# x = Dropout(0.3)(x) 
 out = Dense(num_classes, activation = 'softmax')(x)
 model = Model(input_, out)
 
@@ -237,7 +208,7 @@ print(model.summary())
 
 # adam optimizer
 opt = keras.optimizers.Adam(learning_rate = 1e-4)
-model.compile(optimizer = opt, loss = "categorical_crossentropy", metrics=['accuracy', sensitivity, specificity])
+model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity, specificity])
 
 # callbacks
 mcp_save = keras.callbacks.callbacks.ModelCheckpoint('ann.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
@@ -248,3 +219,5 @@ callbacks_list = [reduce_lr, mcp_save]
 num_epochs = 100
 with tf.device('/gpu:0'): # use gpu
     history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
+
+# Best: 0.11162
