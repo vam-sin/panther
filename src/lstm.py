@@ -9,7 +9,7 @@ import tensorflow as tf
 from keras.models import Model
 from tensorflow.keras.models import load_model
 from keras import optimizers
-from keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input
+from keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, LSTM
 from keras.utils import to_categorical, np_utils
 from keras.regularizers import l2
 from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
@@ -102,7 +102,7 @@ infile.close()
 le = preprocessing.LabelEncoder()
 y = le.fit_transform(y)
 num_classes = len(np.unique(y))
-print(num_classes)
+# print(num_classes)
 print("Loaded X and y")
 
 X, y = shuffle(X, y, random_state=42)
@@ -113,7 +113,6 @@ print("Conducted Train-Test Split")
 
 num_classes_train = len(np.unique(y_train))
 num_classes_test = len(np.unique(y_test))
-print(num_classes_train, num_classes_test)
 
 assert num_classes_test == num_classes_train, "Split not conducted correctly"
 
@@ -130,7 +129,7 @@ def bm_generator(X_t, y_t, batch_size):
 			if val == len(X_t):
 				val = 0
 
-			X_batch.append(np.reshape(X_t[val], (300)))
+			X_batch.append(X_t[val])
 			y_enc = np.zeros((num_classes))
 			y_enc[y_t[val]] = 1
 			y_batch.append(y_enc)
@@ -188,16 +187,9 @@ def specificity(y_true, y_pred):
     return true_negatives / (possible_negatives + K.epsilon())
 
 # keras nn model
-input_ = Input(shape = (300,))
-x = Dense(1024, activation = "relu")(input_)
-x = BatchNormalization()(x)
-x = Dropout(0.3)(x)
-x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Dropout(0.3)(x)
-x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-# x = Dropout(0.3)(x) 
+input_ = Input(shape = (3,100,))
+x = LSTM(1024, activation = 'tanh', return_sequences = True)(input_)
+x = LSTM(1024, activation = 'tanh')(x)
 out = Dense(num_classes, activation = 'softmax')(x)
 model = Model(input_, out)
 
@@ -211,7 +203,7 @@ opt = keras.optimizers.Adam(learning_rate = 1e-4)
 model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity, specificity])
 
 # callbacks
-mcp_save = keras.callbacks.callbacks.ModelCheckpoint('ann.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+mcp_save = keras.callbacks.callbacks.ModelCheckpoint('lstm.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
 reduce_lr = keras.callbacks.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
 callbacks_list = [reduce_lr, mcp_save]
 
@@ -220,4 +212,4 @@ num_epochs = 100
 with tf.device('/gpu:0'): # use gpu
     history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
 
-# Best: 0.65876 (50 epochs)
+# Best: 

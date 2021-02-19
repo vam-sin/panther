@@ -1,3 +1,4 @@
+###### ANN Notes ######
 # ANN1: Val Acc: 0.11162, filename: ann_11-162.h5 
 input_ = Input(shape = (300,))
 x = Dense(1024, activation = "relu")(input_)

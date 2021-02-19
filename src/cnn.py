@@ -130,7 +130,7 @@ def bm_generator(X_t, y_t, batch_size):
 			if val == len(X_t):
 				val = 0
 
-			X_batch.append(np.reshape(X_t[val], (300)))
+			X_batch.append(X_t[val])
 			y_enc = np.zeros((num_classes))
 			y_enc[y_t[val]] = 1
 			y_batch.append(y_enc)
@@ -188,16 +188,23 @@ def specificity(y_true, y_pred):
     return true_negatives / (possible_negatives + K.epsilon())
 
 # keras nn model
-input_ = Input(shape = (300,))
-x = Dense(1024, activation = "relu")(input_)
+input_ = Input(shape = (3,100,))
+x = Conv1D(1028, (3), padding="same", activation = "relu")(input_)
 x = BatchNormalization()(x)
-x = Dropout(0.3)(x)
-x = Dense(1024, activation = "relu")(x)
+x = Conv1D(512, (3), padding="same", activation = "relu")(x)
 x = BatchNormalization()(x)
-x = Dropout(0.3)(x)
-x = Dense(1024, activation = "relu")(x)
+x = Conv1D(256, (3), padding="same", activation = "relu")(x)
 x = BatchNormalization()(x)
-# x = Dropout(0.3)(x) 
+x = Flatten()(x)
+# x = Dense(1024, activation = "relu")(x)
+# x = BatchNormalization()(x)
+# x = Dropout(0.3)(x)
+# x = Dense(1024, activation = "relu")(x)
+# x = BatchNormalization()(x)
+# # x = Dropout(0.3)(x)
+# x = Dense(1024, activation = "relu")(x)
+# x = BatchNormalization()(x)
+# x = Dropout(0.1)(x) 
 out = Dense(num_classes, activation = 'softmax')(x)
 model = Model(input_, out)
 
@@ -211,7 +218,7 @@ opt = keras.optimizers.Adam(learning_rate = 1e-4)
 model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity, specificity])
 
 # callbacks
-mcp_save = keras.callbacks.callbacks.ModelCheckpoint('ann.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+mcp_save = keras.callbacks.callbacks.ModelCheckpoint('cnn.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
 reduce_lr = keras.callbacks.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
 callbacks_list = [reduce_lr, mcp_save]
 
@@ -220,4 +227,4 @@ num_epochs = 100
 with tf.device('/gpu:0'): # use gpu
     history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
 
-# Best: 0.65876 (50 epochs)
+# Best: 

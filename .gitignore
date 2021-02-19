@@ -9,9 +9,5 @@
 /src/ds_preprocess
 /src/knn
 /src/processed_data
-/src/ann_11-162.h5
-/src/ann_52-738.h5
-/src/ann_65-89.h5
-/src/ann_65-876.h5
-/src/X_BV_100_SSG5_Full.pickle
-/src/y_BV_100_SSG5_Full.pickle
+/src/saved_models
+
