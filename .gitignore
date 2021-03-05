@@ -5,9 +5,14 @@
 /figures
 /src/ann.h5
 /src/vnallapa@tails.cs.ucl.ac.uk 
-/src/basic_ml
 /src/ds_preprocess
 /src/knn
 /src/processed_data
 /src/saved_models
+/src/protBert
+/src/__pycache__
+/src/X_subst.pickle
+/src/dl_models_notes
+/src/dl_models/saved_models
+/src/notes/models
 

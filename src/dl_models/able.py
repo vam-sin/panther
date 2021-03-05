@@ -7,10 +7,11 @@ import math
 import pickle
 import tensorflow as tf
 from keras.models import Model
-from tensorflow.keras.models import load_model
+from keras.models import load_model
 from keras import optimizers
-from keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, LSTM
-from keras.utils import to_categorical, np_utils
+from keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input
+# from tensorflow.keras.utils import to_categorical, np_utils
+from keras.layers import LSTM, Bidirectional, Flatten
 from keras.regularizers import l2
 from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
@@ -20,6 +21,7 @@ from sklearn.utils import shuffle
 from keras import regularizers
 from keras import backend as K
 import keras
+from keras_self_attention import SeqSelfAttention
 
 # GPU config for Vamsi's Laptop
 from tensorflow.compat.v1 import ConfigProto
@@ -82,7 +84,7 @@ if gpus:
 #     X_vec.append(vec)
 #     y_vec.append(y[i])
 
-filename = 'X_BV_100_SSG5_Full.pickle'
+filename = 'processed_data/X_BV_100_SSG5_Full.pickle'
 # outfile = open(filename, 'wb')
 # pickle.dump(X_vec, outfile)
 # outfile.close()
@@ -90,13 +92,15 @@ infile = open(filename,'rb')
 X = pickle.load(infile)
 infile.close()
 
-filename = 'y_BV_100_SSG5_Full.pickle'
+filename = 'processed_data/y_BV_100_SSG5_Full.pickle'
 # outfile = open(filename, 'wb')
 # pickle.dump(y_vec, outfile)
 # outfile.close()
 infile = open(filename,'rb')
 y = pickle.load(infile)
 infile.close()
+
+# print(len(y))
 
 # y process
 le = preprocessing.LabelEncoder()
@@ -141,7 +145,7 @@ def bm_generator(X_t, y_t, batch_size):
 		yield X_batch, y_batch
 
 # batch size
-bs = 256
+bs = 256   
 
 # test and train generators
 train_gen = bm_generator(X_train, y_train, bs)
@@ -186,10 +190,16 @@ def specificity(y_true, y_pred):
     possible_negatives = K.sum(K.round(K.clip(1-y_true, 0, 1)))
     return true_negatives / (possible_negatives + K.epsilon())
 
-# keras nn model
+# LSTM model; cannot use batchnormalization on this
 input_ = Input(shape = (3,100,))
-x = LSTM(1024, activation = 'tanh', return_sequences = True)(input_)
-x = LSTM(1024, activation = 'tanh')(x)
+x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(input_)
+x = Dropout(0.1)(x)
+x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
+x = Dropout(0.1)(x)
+x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
+x = Dropout(0.1)(x)
+x = SeqSelfAttention(attention_activation='sigmoid')(x)
+x = Flatten()(x)
 out = Dense(num_classes, activation = 'softmax')(x)
 model = Model(input_, out)
 
@@ -199,17 +209,18 @@ loss_calculator = SampledSoftmaxLoss(model)
 print(model.summary())
 
 # adam optimizer
-opt = keras.optimizers.Adam(learning_rate = 1e-4)
+opt = keras.optimizers.Adam(learning_rate = 1e-5)
 model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity, specificity])
 
 # callbacks
-mcp_save = keras.callbacks.callbacks.ModelCheckpoint('lstm.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
-reduce_lr = keras.callbacks.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
+mcp_save = keras.callbacks.callbacks.ModelCheckpoint('saved_models/able.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+reduce_lr = keras.callbacks.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
 callbacks_list = [reduce_lr, mcp_save]
-
+# model = load_model('saved_models/able.h5')
 # training
-num_epochs = 100
+
+num_epochs = 500
 with tf.device('/gpu:0'): # use gpu
     history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
 
-# Best: 
+# Best: loss: 1.3829 - accuracy: 0.6167 - sensitivity: 0.4856 - specificity: 1.0000 - val_loss: 1.7264 - val_accuracy: 0.5373 - val_sensitivity: 0.4305 - val_specificity: 1.0000

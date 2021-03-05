@@ -6,20 +6,20 @@ import biovec
 import math
 import pickle
 import tensorflow as tf
-from keras.models import Model
+from tensorflow.keras.models import Model
 from tensorflow.keras.models import load_model
-from keras import optimizers
-from keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input
-from keras.utils import to_categorical, np_utils
-from keras.regularizers import l2
+from tensorflow.keras import optimizers
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, LeakyReLU, Add
+# from tensorflow.keras.utils import to_categorical, np_utils
+from tensorflow.keras.regularizers import l2
 from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
-from keras import regularizers
-from keras import backend as K
-import keras
+from tensorflow.keras import regularizers
+from tensorflow.keras import backend as K
+from tensorflow import keras
 
 # GPU config for Vamsi's Laptop
 from tensorflow.compat.v1 import ConfigProto
@@ -82,7 +82,7 @@ if gpus:
 #     X_vec.append(vec)
 #     y_vec.append(y[i])
 
-filename = 'X_BV_100_SSG5_Full.pickle'
+filename = 'processed_data/X_BV_100_SSG5_Full.pickle'
 # outfile = open(filename, 'wb')
 # pickle.dump(X_vec, outfile)
 # outfile.close()
@@ -90,7 +90,7 @@ infile = open(filename,'rb')
 X = pickle.load(infile)
 infile.close()
 
-filename = 'y_BV_100_SSG5_Full.pickle'
+filename = 'processed_data/y_BV_100_SSG5_Full.pickle'
 # outfile = open(filename, 'wb')
 # pickle.dump(y_vec, outfile)
 # outfile.close()
@@ -188,25 +188,67 @@ def specificity(y_true, y_pred):
     return true_negatives / (possible_negatives + K.epsilon())
 
 # keras nn model
+# NN (Skip Connections) Model
 input_ = Input(shape = (3,100,))
-x = Conv1D(1028, (3), padding="same", activation = "relu")(input_)
+x = Conv1D(128, (3), padding = 'same', kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(input_)
+x = LeakyReLU(alpha = 0.05)(x)
+x = Conv1D(64, (3), padding = 'same', kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(x)
+x = LeakyReLU(alpha = 0.05)(x)
+x = Conv1D(32, (3), padding = 'same', kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(x)
+x = LeakyReLU(alpha = 0.05)(x)
+
+# Skip Connection #1
+input_c = Conv1D(32, (3), padding = 'same', kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(input_)
+skc = Add()([input_c, x])
+skc_f = Flatten()(skc)
+
+x = Dense(512, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(skc_f)
+x = LeakyReLU(alpha = 0.05)(x)
 x = BatchNormalization()(x)
-x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Conv1D(256, (3), padding="same", activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Flatten()(x)
-# x = Dense(1024, activation = "relu")(x)
-# x = BatchNormalization()(x)
-# x = Dropout(0.3)(x)
-# x = Dense(1024, activation = "relu")(x)
-# x = BatchNormalization()(x)
-# # x = Dropout(0.3)(x)
-# x = Dense(1024, activation = "relu")(x)
-# x = BatchNormalization()(x)
-# x = Dropout(0.1)(x) 
-out = Dense(num_classes, activation = 'softmax')(x)
-model = Model(input_, out)
+
+# Block 2
+z = Dense(256, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(x)
+z = LeakyReLU(alpha = 0.05)(z)
+# z = Dropout(0.1)(z)
+z = BatchNormalization()(z)
+
+# Block 3
+x = Dense(128, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(z)
+x = LeakyReLU(alpha = 0.05)(x)
+# x = Dropout(0.1)(x)
+x = BatchNormalization()(x) 
+
+# Block 4
+# Skip connection #2
+z = Dense(128, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(skc_f)
+sk1 = Add()([x, z])
+z = Dense(64, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(sk1)
+z = LeakyReLU(alpha = 0.05)(z)
+# z = Dropout(0.1)(z)
+z = BatchNormalization()(z)
+
+# Block 5
+x = Dense(32, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(z)
+x = LeakyReLU(alpha = 0.05)(x)
+# x = Dropout(0.1)(x)
+x = BatchNormalization()(x) 
+
+# Block 6
+z = Dense(16, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(x)
+z = LeakyReLU(alpha = 0.05)(z)
+# z = Dropout(0.1)(z)
+z = BatchNormalization()(z)
+
+# Block 7
+# Skip Connection #3
+x = Dense(16, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(skc_f)
+sk2 = Add()([z, x])
+x = Dense(8, kernel_initializer = 'glorot_uniform', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(sk2)
+x = LeakyReLU(alpha = 0.05)(x)
+x = BatchNormalization()(x) 
+x = Dropout(0.5)(x)
+output = Dense(num_classes, activation = 'softmax', kernel_regularizer=regularizers.l1_l2(l1=1e-5, l2=1e-4), bias_regularizer=regularizers.l2(1e-4), activity_regularizer=regularizers.l2(1e-5))(x)
+model = Model(input_, output)
 
 # loss function
 loss_calculator = SampledSoftmaxLoss(model)
@@ -214,17 +256,17 @@ loss_calculator = SampledSoftmaxLoss(model)
 print(model.summary())
 
 # adam optimizer
-opt = keras.optimizers.Adam(learning_rate = 1e-4)
+opt = keras.optimizers.Adam(learning_rate = 1e-5)
 model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity, specificity])
 
 # callbacks
-mcp_save = keras.callbacks.callbacks.ModelCheckpoint('cnn.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
-reduce_lr = keras.callbacks.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
+mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
 callbacks_list = [reduce_lr, mcp_save]
-
+#model = load_model('cnn.h5', custom_objects={'sensitivity':sensitivity, 'specificity':specificity})
 # training
-num_epochs = 100
+num_epochs = 500
 with tf.device('/gpu:0'): # use gpu
     history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
 
-# Best: 
+# Best: 0.4766
