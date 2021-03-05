@@ -1,6 +1,26 @@
 # Panther
 
-Classification of protein sequences in Structurally Similar Groups based on the CATH database.
+Deep learnign based tool to classify protein sequences into Structurally Similar Groups (5 Å distance) based on the CATH database.
+
+# Dataset
+
+The sequences were obtained from the CATH database (Version 4.2.0)
+
+- Total Number of Sequences: 4,134,000
+- Total Number of Classes: 5,515
+
+## Preprocessing
+
+Those classes that had less than 100 datapoints were removed from the dataset, the resulting dataset has been described below:
+
+- Number of Sequences: 4,079,562
+- Number of Classes: 3,898
+
+The sequences in this dataset were encoded into vector format using a number of techniques and then the performance was compared on each of them. The encoding techniques have been mentioned down below:
+
+- BioVec (Implementation of the ProtVec)
+- One-Hot Encoding
+- ProtBert (Working on this currently)
 
 # Results
 
