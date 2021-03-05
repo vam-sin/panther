@@ -1,6 +1,6 @@
 # Panther
 
-Deep learnign based tool to classify protein sequences into Structurally Similar Groups (5 Å distance) based on the CATH database.
+Deep learning based tool to classify protein sequences into Structurally Similar Groups (5 Å distance) based on the CATH database.
 
 # Dataset
 
