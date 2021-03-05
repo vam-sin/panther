@@ -13,3 +13,8 @@ Classification of protein sequences in Structurally Similar Groups based on the 
 | Attention-BiLSTM   | 53.73%        | 43.05%        |
 
 ## One-Hot Encoding
+
+| Model      | Accuracy | Sensitivity | 
+| ----------- | ----------- | ----------- |
+| CNN   | 76.54%        | 73.49%        |
+| Residual Protein Net   | -        | -        |
