@@ -72,11 +72,11 @@ codes = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L',
          'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
 
 def create_dict(codes):
-	char_dict = {}
-	for index, val in enumerate(codes):
-		char_dict[val] = index+1
+    char_dict = {}
+    for index, val in enumerate(codes):
+        char_dict[val] = index+1
 
-	return char_dict
+    return char_dict
 
 char_dict = create_dict(codes)
 
@@ -84,19 +84,19 @@ print(char_dict)
 print("Dict Length:", len(char_dict))
 
 def integer_encoding(data):
-	"""
-	- Encodes code sequence to integer values.
-	- 20 common amino acids are taken into consideration
-	and rest 4 are categorized as 0.
-	"""
-	encode_list = []
-	for row in data:
-		row_encode = []	
-		for code in row: 
-			row_encode.append(char_dict.get(code, 0))
-		encode_list.append(np.array(row_encode))
+    """
+    - Encodes code sequence to integer values.
+    - 20 common amino acids are taken into consideration
+    and rest 4 are categorized as 0.
+    """
+    encode_list = []
+    for row in data:
+        row_encode = [] 
+        for code in row: 
+            row_encode.append(char_dict.get(code, 0))
+        encode_list.append(np.array(row_encode))
 
-	return encode_list
+    return encode_list
   
 # y process
 le = preprocessing.LabelEncoder()
@@ -141,7 +141,7 @@ def bm_generator(X_t, y_t, batch_size):
         X_batch = to_categorical(X_batch)
         X_batchT = []
         for arr in X_batch:
-        	X_batchT.append(arr.T)
+            X_batchT.append(arr.T)
         X_batch = np.asarray(X_batchT)
         # print(X_batch.shape)
         y_batch = np.asarray(y_batch)
@@ -164,52 +164,26 @@ def sensitivity(y_true, y_pred):
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     return true_positives / (possible_positives + K.epsilon())
 
-def ResBlock(inp):
-    x = Conv1D(512, (3), padding="same", activation = "relu")(inp)
-    x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
-    x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
-    x = Add()([x, inp])
-
-    return x
-
 # keras nn model
 # (Res-Blocks x k) + (LSTM x 2) + Attention Layer
 input_ = Input(shape = (21, max_length,))
-
-x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
-x = BatchNormalization()(x)
+x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(input_)
 x = Dropout(0.3)(x)
-
-# Residual Blocks
-x = ResBlock(x)
-x = ResBlock(x)
-
-# sequence layers
-x = Bidirectional(LSTM(128, activation = 'tanh', return_sequences = True))(x)
+x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
 x = Dropout(0.3)(x)
-x = Bidirectional(LSTM(128, activation = 'tanh', return_sequences = True))(x)
+x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
 x = Dropout(0.3)(x)
-x = SeqSelfAttention(attention_activation = "sigmoid")(x)
-
+x = SeqSelfAttention(attention_activation='sigmoid')(x)
 x = Flatten()(x)
-
-x = Dense(1024, activation = "relu")(x)
-x = Dropout(0.5)(x)
 out = Dense(num_classes, activation = 'softmax')(x)
-
 model = Model(input_, out)
-
-print(model.summary())
 
 # adam optimizer
 opt = keras.optimizers.Adam(learning_rate = 1e-4)
-model.compile(optimizer = opt, loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
+model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
 
 # callbacks
-mcp_save = keras.callbacks.callbacks.ModelCheckpoint('saved_models/rpn_1.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+mcp_save = keras.callbacks.callbacks.ModelCheckpoint('saved_models/able_oh.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
 reduce_lr = keras.callbacks.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
 callbacks_list = [reduce_lr, mcp_save]
 
