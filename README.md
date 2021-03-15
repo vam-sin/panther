@@ -37,5 +37,5 @@ The sequences in this dataset were encoded into vector format using a number of 
 | Model      | Accuracy | Sensitivity | 
 | ----------- | ----------- | ----------- |
 | CNN   | 76.83%        | 73.40%        |
-| Residual CNN   |  76.38%       | 73.24%        |
+| Residual CNN   |  76.73%       | 73.35%        |
 | Residual Protein Net   | 74.76%        | 71.19%        |
