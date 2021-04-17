@@ -5,27 +5,15 @@ import pandas as pd
 
 embedder = ProtTransBertBFDEmbedder()
 
-ds = pd.read_csv('dataset_non.csv')
+ds = pd.read_csv('SSG5_BLAST_L100.csv')
 
-# 5,515 unique classes -> 5481 unique classes with more than one datapoint
-# 3898 unique classes with >= 100 training examples
-# removing those classes that have only one datapoint
-values = ds["class"].value_counts()
-to_remove = list(values[values < 100].index)
-ds = ds[ds["class"].isin(to_remove) == False]
-
-ds = ds.reset_index() 
-ds.columns = ["one", "two", "three", "sequence", "class"]
-ds = ds.drop(columns = ["one", "two", "three"])
-
-sequences_Example = list(ds["sequence"])
+sequences_Example = list(ds["Sequence"])
 num_seq = len(sequences_Example)
-y = list(ds["class"])
 
 i = 0
-length = 100
+length = 1000
 while i < num_seq:
-	print(i, num_seq)
+	print("Doing", i, num_seq)
 	start = i 
 	end = i + length
 

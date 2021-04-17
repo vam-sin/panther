@@ -14,5 +14,8 @@
 /src/X_subst.pickle
 /src/dl_models_notes
 /src/dl_models/saved_models
+/src/dl_models/prediction_analysis
 /src/notes/models
+/src/ProtBert/apex
+/src/ProtBert/PB
 

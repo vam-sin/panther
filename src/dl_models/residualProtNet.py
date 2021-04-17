@@ -167,10 +167,10 @@ def sensitivity(y_true, y_pred):
 def ResBlock(inp):
     x = Conv1D(512, (3), padding="same", activation = "relu")(inp)
     x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
+    x = Dropout(0.4)(x)
     x = Conv1D(512, (3), padding="same", activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
+    x = Dropout(0.4)(x)
     x = Add()([x, inp])
 
     return x
@@ -181,16 +181,18 @@ input_ = Input(shape = (21, max_length,))
 
 x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
 x = BatchNormalization()(x)
-x = Dropout(0.3)(x)
+x = Dropout(0.4)(x)
 
 # Residual Blocks
 x = ResBlock(x)
 x = ResBlock(x)
+x = ResBlock(x)
+x = ResBlock(x)
 
 # sequence layers
-x = Bidirectional(LSTM(128, activation = 'tanh', return_sequences = True))(x)
+x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
 x = Dropout(0.3)(x)
-x = Bidirectional(LSTM(128, activation = 'tanh', return_sequences = True))(x)
+x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
 x = Dropout(0.3)(x)
 x = SeqSelfAttention(attention_activation = "sigmoid")(x)
 
@@ -206,10 +208,11 @@ print(model.summary())
 
 # adam optimizer
 opt = keras.optimizers.Adam(learning_rate = 1e-4)
-model.compile(optimizer = opt, loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
+model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
 
+# [4m,21,1363]
 # callbacks
-mcp_save = keras.callbacks.callbacks.ModelCheckpoint('saved_models/rpn_1.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+mcp_save = keras.callbacks.callbacks.ModelCheckpoint('saved_models/residualProteinNet.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
 reduce_lr = keras.callbacks.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
 callbacks_list = [reduce_lr, mcp_save]
 

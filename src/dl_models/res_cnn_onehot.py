@@ -165,10 +165,10 @@ def sensitivity(y_true, y_pred):
 def ResBlock(inp):
     x = Conv1D(512, (3), padding="same", activation = "relu")(inp)
     x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
+    x = Dropout(0.4)(x)
     x = Conv1D(512, (3), padding="same", activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
+    x = Dropout(0.4)(x)
     x = Add()([x, inp])
 
     return x
@@ -177,21 +177,23 @@ def ResBlock(inp):
 input_ = Input(shape = (21, max_length,))
 x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
 x = BatchNormalization()(x)
-x = Dropout(0.3)(x)
+x = Dropout(0.4)(x)
 
+x = ResBlock(x)
+x = ResBlock(x)
 x = ResBlock(x)
 x = ResBlock(x)
 
 x = Flatten()(x)
 x = Dense(1024, activation = "relu")(x)
 x = BatchNormalization()(x)
-x = Dropout(0.3)(x)
+x = Dropout(0.4)(x)
 x = Dense(1024, activation = "relu")(x)
 x = BatchNormalization()(x)
-x = Dropout(0.3)(x)
+x = Dropout(0.4)(x)
 x = Dense(1024, activation = "relu")(x)
 x = BatchNormalization()(x)
-x = Dropout(0.3)(x) 
+x = Dropout(0.5)(x) 
 out = Dense(num_classes, activation = 'softmax')(x)
 model = Model(input_, out)
 

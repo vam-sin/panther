@@ -1,25 +1,20 @@
-#libraries
+# libraries
 import pandas as pd 
-from sklearn import preprocessing
 import numpy as np 
-import pickle
-from sklearn.preprocessing import OneHotEncoder 
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
-from sklearn.utils import shuffle
-from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
+from sklearn import preprocessing
+import biovec
 import math
-from tensorflow.keras.utils import to_categorical
+import pickle
 import tensorflow as tf
-from tensorflow.keras.models import Model
-from tensorflow.keras.models import load_model
-from tensorflow.keras import optimizers
-from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, MaxPooling1D
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras import optimizers, regularizers
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, LeakyReLU, Add
 from tensorflow.keras.regularizers import l2
+from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
+from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
-from tensorflow.keras import regularizers
 from tensorflow.keras import backend as K
 from tensorflow import keras
 
@@ -50,43 +45,11 @@ if gpus:
 # dataset import 
 ds = pd.read_csv('../../data/v4.3/BLAST/SSG5_BLAST_L100.csv')
 
-X = list(ds["Sequence"])
 y = list(ds["SSG5_Class"])
 
-# maximum sequence length is 769 residues in the ds
+filename = '../processed_data/SSG5_BLAST_L100_BioVec.npz'
+X = np.load(filename)['arr_0']
 
-max_length = 769
-
-codes = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L',
-         'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
-
-def create_dict(codes):
-	char_dict = {}
-	for index, val in enumerate(codes):
-		char_dict[val] = index+1
-
-	return char_dict
-
-char_dict = create_dict(codes)
-
-print(char_dict)
-print("Dict Length:", len(char_dict))
-
-def integer_encoding(data):
-	"""
-	- Encodes code sequence to integer values.
-	- 20 common amino acids are taken into consideration
-	and rest 4 are categorized as 0.
-	"""
-	encode_list = []
-	for row in data:
-		row_encode = []	
-		for code in row: 
-			row_encode.append(char_dict.get(code, 0))
-		encode_list.append(np.array(row_encode))
-
-	return encode_list
-  
 # y process
 le = preprocessing.LabelEncoder()
 y = le.fit_transform(y)
@@ -108,34 +71,27 @@ assert num_classes_test == num_classes_train, "Split not conducted correctly"
 
 # generator
 def bm_generator(X_t, y_t, batch_size):
-    val = 0
+	val = 0
 
-    while True:
-        X_batch = []
-        y_batch = []
+	while True:
+		X_batch = []
+		y_batch = []
 
-        for j in range(batch_size):
+		for j in range(batch_size):
 
-            if val == len(X_t):
-                val = 0
+			if val == len(X_t):
+				val = 0
 
-            X_batch.append(X_t[val])
-            y_enc = np.zeros((num_classes))
-            y_enc[y_t[val]] = 1
-            y_batch.append(y_enc)
-            val += 1
+			X_batch.append(X_t[val])
+			y_enc = np.zeros((num_classes))
+			y_enc[y_t[val]] = 1
+			y_batch.append(y_enc)
+			val += 1
 
-        X_batch = integer_encoding(X_batch)
-        X_batch = pad_sequences(X_batch, maxlen=max_length, padding='post', truncating='post')
-        X_batch = to_categorical(X_batch)
-        X_batchT = []
-        for arr in X_batch:
-        	X_batchT.append(arr.T)
-        X_batch = np.asarray(X_batchT)
-        # print(X_batch.shape)
-        y_batch = np.asarray(y_batch)
+		X_batch = np.asarray(X_batch)
+		y_batch = np.asarray(y_batch)
 
-        yield X_batch, y_batch
+		yield X_batch, y_batch
 
 # batch size
 bs = 256
@@ -152,49 +108,58 @@ def sensitivity(y_true, y_pred):
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     return true_positives / (possible_positives + K.epsilon())
 
-# keras nn model
-input_ = Input(shape = (21, max_length,))
+# Keras NN Model
+input_ = Input(shape = (3,100,))
 x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
 x = BatchNormalization()(x)
-x = Dropout(0.4)(x)
+x = Dropout(0.1)(x)
 x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-x = Dropout(0.4)(x)
-x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-x = Dropout(0.4)(x)
-x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-x = Dropout(0.4)(x)
+x = Dropout(0.1)(x)
 x = BatchNormalization()(x)
 x = Flatten()(x)
 x = Dense(1024, activation = "relu")(x)
 x = BatchNormalization()(x)
-x = Dropout(0.4)(x)
+x = Dropout(0.1)(x)
 x = Dense(1024, activation = "relu")(x)
 x = BatchNormalization()(x)
-x = Dropout(0.4)(x)
+x = Dropout(0.2)(x)
 x = Dense(1024, activation = "relu")(x)
 x = BatchNormalization()(x)
-x = Dropout(0.5)(x) 
+x = Dropout(0.2)(x) 
 out = Dense(num_classes, activation = 'softmax')(x)
 model = Model(input_, out)
 
 print(model.summary())
 
 # adam optimizer
-opt = keras.optimizers.Adam(learning_rate = 1e-4)
+opt = keras.optimizers.Adam(learning_rate = 1e-5)
 model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
 
 # callbacks
-mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_onehot.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_biovec_check.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
 reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
 callbacks_list = [reduce_lr, mcp_save]
 
 # training
-num_epochs = 500
+num_epochs = 1
 with tf.device('/gpu:0'): # use gpu
-    history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = False, callbacks = callbacks_list)
+    history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
+    model = load_model('saved_models/cnn_biovec_check.h5', custom_objects={'sensitivity':sensitivity})
+
+with tf.device('/cpu:0'):
+    y_pred = model.predict(X_test)
+    print("Classification Report Validation")
+    cr = classification_report(y_test, y_pred.argmax(axis=1), output_dict = True)
+    df = pd.DataFrame(cr).transpose()
+    df.to_csv('CR_CNN_BioVec.csv')
+    print("Confusion Matrix")
+    matrix = confusion_matrix(y_test, y_pred.argmax(axis=1))
+    print(matrix)
+    print("F1 Score")
+    print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
-saved_models/cnn_onehot.h5
-loss: 0.0272 - accuracy: 0.9914 - sensitivity: 0.9904 - 
-val_loss: 0.0705 - val_accuracy: 0.9882 - val_sensitivity: 0.9876
+/saved_models/cnn_biovec.h5
+loss: 0.0054 - accuracy: 0.9982 - sensitivity: 0.9981 - 
+val_loss: 0.2778 - val_accuracy: 0.9678 - val_sensitivity: 0.9668
 '''
