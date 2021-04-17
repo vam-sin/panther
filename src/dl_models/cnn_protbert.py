@@ -165,6 +165,6 @@ with tf.device('/cpu:0'):
 
 '''
 cnn_protbert.h5 (On Beaker)
-loss: 0.0111 - accuracy: 0.9966 - sensitivity: 0.9964 - 
-val_loss: 0.0768 - val_accuracy: 0.9932 - val_sensitivity: 0.9929
+loss: 4.2327e-04 - accuracy: 0.9998 - sensitivity: 0.9998 - 
+val_loss: 0.0801 - val_accuracy: 0.9958 - val_sensitivity: 0.9957
 '''

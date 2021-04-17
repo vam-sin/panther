@@ -141,7 +141,7 @@ reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1
 callbacks_list = [reduce_lr, mcp_save]
 
 # training
-num_epochs = 1
+num_epochs = 500
 with tf.device('/gpu:0'): # use gpu
     history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
     model = load_model('saved_models/cnn_biovec_check.h5', custom_objects={'sensitivity':sensitivity})
