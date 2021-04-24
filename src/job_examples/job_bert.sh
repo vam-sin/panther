@@ -9,8 +9,9 @@
 #$ -j y 
 #$ -N bert_features
 #$ -cwd 
-source ml-vamsi/bin/activate
+source ml-actual/bin/activate
+cd SSG5/
 source /share/apps/source_files/cuda/cuda-10.1.source
 export PATH=/share/apps/python-3.7.2-shared/bin:$PATH
 export LD_LIBRARY_PATH=/share/apps/python-3.7.2-shared/lib:$LD_LIBRARY_PATH
-python3 protBert_features.py 	
+python3 ProtBertBFD.py 	

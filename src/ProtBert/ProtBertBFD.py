@@ -5,12 +5,12 @@ import pandas as pd
 
 embedder = ProtTransBertBFDEmbedder()
 
-ds = pd.read_csv('SSG5_BLAST_L100.csv')
+ds = pd.read_csv('SSG5_Test_50.csv')
 
 sequences_Example = list(ds["Sequence"])
 num_seq = len(sequences_Example)
 
-i = 0
+i = 11000
 length = 1000
 while i < num_seq:
 	print("Doing", i, num_seq)

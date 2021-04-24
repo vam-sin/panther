@@ -12,4 +12,4 @@ for i in range(1, 800):
 	except:
 		pass
 
-np.savez_compressed('SSG5_BLAST_L100_PB.npz', pb_arr)
+np.savez_compressed('SSG5_Test_50.npz', pb_arr)

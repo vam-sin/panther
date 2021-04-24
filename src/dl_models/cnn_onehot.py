@@ -48,14 +48,19 @@ if gpus:
         print(e)
 
 # dataset import 
-ds = pd.read_csv('../../data/v4.3/BLAST/SSG5_BLAST_L100.csv')
+ds_train = pd.read_csv('../../data/v4.3/SSG5_Train_50.csv')
 
-X = list(ds["Sequence"])
-y = list(ds["SSG5_Class"])
+X = list(ds_train["Sequence"])
+y = list(ds_train["SSG5_Class"])
 
-# maximum sequence length is 769 residues in the ds
+ds_test = pd.read_csv('../../data/v4.3/SSG5_Test_50.csv')
 
-max_length = 769
+X_test = np.load('../processed_data/SSG5_Test_50_OneHot.npz')['arr_0']
+y_test = list(ds_test["SSG5_Class"])
+
+# maximum sequence length is 606 residues in the ds
+
+max_length = 606
 
 codes = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L',
          'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
@@ -88,8 +93,19 @@ def integer_encoding(data):
 	return encode_list
   
 # y process
+# y process
+y_tot = []
+
+for i in range(len(y)):
+    y_tot.append(y[i])
+
+for i in range(len(y_test)):
+    y_tot.append(y_test[i])
+
 le = preprocessing.LabelEncoder()
-y = le.fit_transform(y)
+le.fit(y_tot)
+y = np.asarray(le.transform(y))
+y_test = np.asarray(le.transform(y_test))
 num_classes = len(np.unique(y))
 print(num_classes)
 print("Loaded X and y")
@@ -97,14 +113,20 @@ print("Loaded X and y")
 X, y = shuffle(X, y, random_state=42)
 print("Shuffled")
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-print("Conducted Train-Test Split")
+X = integer_encoding(X)
+print("Integer Encoded")
+X = pad_sequences(X, maxlen=max_length, padding='post', truncating='post')
+print("Padded")
 
-num_classes_train = len(np.unique(y_train))
-num_classes_test = len(np.unique(y_test))
-print(num_classes_train, num_classes_test)
+def to_cat(seq_list):
+    out = []
+    for seq in seq_list:
+        arr = np.zeros((max_length, 21))
+        for i in range(len(seq)):
+            arr[i][seq[i]] = 1
+        out.append(arr)
 
-assert num_classes_test == num_classes_train, "Split not conducted correctly"
+    return out
 
 # generator
 def bm_generator(X_t, y_t, batch_size):
@@ -125,9 +147,9 @@ def bm_generator(X_t, y_t, batch_size):
             y_batch.append(y_enc)
             val += 1
 
-        X_batch = integer_encoding(X_batch)
-        X_batch = pad_sequences(X_batch, maxlen=max_length, padding='post', truncating='post')
-        X_batch = to_categorical(X_batch)
+        # X_batch = integer_encoding(X_batch)
+        # X_batch = pad_sequences(X_batch, maxlen=max_length, padding='post', truncating='post')
+        X_batch = np.asarray(to_cat(X_batch))
         X_batchT = []
         for arr in X_batch:
         	X_batchT.append(arr.T)
@@ -140,11 +162,7 @@ def bm_generator(X_t, y_t, batch_size):
 # batch size
 bs = 256
 
-# test and train generators
-train_gen = bm_generator(X_train, y_train, bs)
-test_gen = bm_generator(X_test, y_test, bs)
-
-# num_classes = 2463
+# num_classes = 1707
 
 # sensitivity metric
 def sensitivity(y_true, y_pred):
@@ -152,49 +170,107 @@ def sensitivity(y_true, y_pred):
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     return true_positives / (possible_positives + K.epsilon())
 
-# keras nn model
-input_ = Input(shape = (21, max_length,))
-x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
-x = BatchNormalization()(x)
-x = Dropout(0.4)(x)
-x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-x = Dropout(0.4)(x)
-x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-x = Dropout(0.4)(x)
-x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-x = Dropout(0.4)(x)
-x = BatchNormalization()(x)
-x = Flatten()(x)
-x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Dropout(0.4)(x)
-x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Dropout(0.4)(x)
-x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Dropout(0.5)(x) 
-out = Dense(num_classes, activation = 'softmax')(x)
-model = Model(input_, out)
+# Keras NN Model
+def create_model():
+    input_ = Input(shape = (21, max_length,))
+    x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x)
+    x = Conv1D(512, (3), padding="same", activation = "relu")(x)
+    x = Dropout(0.2)(x)
+    x = BatchNormalization()(x)
+    x = Flatten()(x)
+    x = Dense(1024, activation = "relu")(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x)
+    x = Dense(1024, activation = "relu")(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x)
+    x = Dense(1024, activation = "relu")(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x) 
+    out = Dense(num_classes, activation = 'softmax')(x)
+    classifier = Model(input_, out)
 
-print(model.summary())
-
-# adam optimizer
-opt = keras.optimizers.Adam(learning_rate = 1e-4)
-model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
-
-# callbacks
-mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_onehot.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
-reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
-callbacks_list = [reduce_lr, mcp_save]
+    return classifier
 
 # training
-num_epochs = 500
-with tf.device('/gpu:0'): # use gpu
-    history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = False, callbacks = callbacks_list)
+kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
+
+# training
+num_epochs = 20
+
+fold = 1
+
+val_f1score = []
+val_acc = []
+test_f1score = []
+test_acc = []
+
+with tf.device('/gpu:0'):
+    for train_index, val_index in kf.split(X):
+        print("#############################")
+        print("Training with Fold " + str(fold))
+        print("#############################")
+
+        # model
+        model = create_model()
+
+        # adam optimizer
+        opt = keras.optimizers.Adam(learning_rate = 1e-5)
+        model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
+
+        # callbacks
+        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_onehot_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+        reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
+        callbacks_list = [reduce_lr, mcp_save]
+
+        # test and train generators
+        X_train, X_val = X[train_index], X[val_index]
+        y_train, y_val = y[train_index], y[val_index]
+        train_gen = bm_generator(X_train, y_train, bs)
+        val_gen = bm_generator(X_val, y_val, bs)
+        history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
+        model = load_model('saved_models/cnn_onehot_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
+
+        # print("Validation")
+        # X_val = np.asarray(to_cat(X_val))
+        # X_valT = []
+        # for arr in X_val:
+        #     X_valT.append(arr.T)
+        # X_val = np.asarray(X_valT)
+        # y_pred_val = model.predict(X_val)
+        # f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
+        # acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
+        # val_f1score.append(f1_score_val)
+        # val_acc.append(acc_score_val)
+        # print("F1 Score: ", val_f1score)
+        # print("Acc Score", val_acc)
+
+        print("Testing")
+        X_testT = []
+        for arr in X_test:
+            X_testT.append(arr.T)
+        X_test = np.asarray(X_testT)
+        y_pred_test = model.predict(X_test)
+        f1_score_test = f1_score(y_test, y_pred_test.argmax(axis=1), average = 'weighted')
+        acc_score_test = accuracy_score(y_test, y_pred_test.argmax(axis=1))
+        test_f1score.append(f1_score_test)
+        test_acc.append(acc_score_test)
+        print("F1 Score: ", test_f1score)
+        print("Acc Score", test_acc)
+
+        fold += 1
+
+print("Validation F1 Score: " + str(np.mean(val_f1score)) + ' +- ' + str(np.std(val_f1score)))
+print("Validation Acc Score: " + str(np.mean(val_acc)) + ' +- ' + str(np.std(val_acc)))
+print("Test F1 Score: " + str(np.mean(test_f1score)) + ' +- ' + str(np.std(test_f1score)))
+print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc)))
 
 '''
 saved_models/cnn_onehot.h5
-loss: 0.0272 - accuracy: 0.9914 - sensitivity: 0.9904 - 
-val_loss: 0.0705 - val_accuracy: 0.9882 - val_sensitivity: 0.9876
+F1 Score: [0.6943895505995065, 0.7007527116386166]
+0.6975711311190615 +- 0.003181580519555083
+Accuracy: [0.6967920534114965, 0.7026542908321121]
+0.6997231721218042 +- 0.0029311187103077674
 '''

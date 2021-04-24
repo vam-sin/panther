@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
 from tensorflow.keras import backend as K
 from tensorflow import keras
+from sklearn.model_selection import KFold
 
 # GPU config for Vamsi's Laptop
 from tensorflow.compat.v1 import ConfigProto
@@ -43,16 +44,33 @@ if gpus:
         print(e)
 
 # dataset import 
-ds = pd.read_csv('../../data/v4.3/BLAST/SSG5_BLAST_L100.csv')
+ds_train = pd.read_csv('../../data/v4.3/SSG5_Train_50.csv')
 
-y = list(ds["SSG5_Class"])
+y = list(ds_train["SSG5_Class"])
 
-filename = '../processed_data/SSG5_BLAST_L100_BioVec.npz'
+filename = '../processed_data/SSG5_Train_50.npz'
 X = np.load(filename)['arr_0']
 
+ds_test = pd.read_csv('../../data/v4.3/SSG5_Test_50.csv')
+
+y_test = list(ds_test["SSG5_Class"])
+
+filename = '../processed_data/SSG5_Test_50.npz'
+X_test = np.load(filename)['arr_0']
+
 # y process
+y_tot = []
+
+for i in range(len(y)):
+    y_tot.append(y[i])
+
+for i in range(len(y_test)):
+    y_tot.append(y_test[i])
+
 le = preprocessing.LabelEncoder()
-y = le.fit_transform(y)
+le.fit(y_tot)
+y = np.asarray(le.transform(y))
+y_test = np.asarray(le.transform(y_test))
 num_classes = len(np.unique(y))
 print(num_classes)
 print("Loaded X and y")
@@ -60,14 +78,14 @@ print("Loaded X and y")
 X, y = shuffle(X, y, random_state=42)
 print("Shuffled")
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-print("Conducted Train-Test Split")
+# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# print("Conducted Train-Test Split")
 
-num_classes_train = len(np.unique(y_train))
-num_classes_test = len(np.unique(y_test))
-print(num_classes_train, num_classes_test)
+# num_classes_train = len(np.unique(y_train))
+# num_classes_test = len(np.unique(y_test))
+# print(num_classes_train, num_classes_test)
 
-assert num_classes_test == num_classes_train, "Split not conducted correctly"
+# assert num_classes_test == num_classes_train, "Split not conducted correctly"
 
 # generator
 def bm_generator(X_t, y_t, batch_size):
@@ -97,10 +115,10 @@ def bm_generator(X_t, y_t, batch_size):
 bs = 256
 
 # test and train generators
-train_gen = bm_generator(X_train, y_train, bs)
-test_gen = bm_generator(X_test, y_test, bs)
+# train_gen = bm_generator(X_train, y_train, bs)
+# test_gen = bm_generator(X_test, y_test, bs)
 
-# num_classes = 2463
+# num_classes = 1707
 
 # sensitivity metric
 def sensitivity(y_true, y_pred):
@@ -109,57 +127,115 @@ def sensitivity(y_true, y_pred):
     return true_positives / (possible_positives + K.epsilon())
 
 # Keras NN Model
-input_ = Input(shape = (3,100,))
-x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
-x = BatchNormalization()(x)
-x = Dropout(0.1)(x)
-x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-x = Dropout(0.1)(x)
-x = BatchNormalization()(x)
-x = Flatten()(x)
-x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Dropout(0.1)(x)
-x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Dropout(0.2)(x)
-x = Dense(1024, activation = "relu")(x)
-x = BatchNormalization()(x)
-x = Dropout(0.2)(x) 
-out = Dense(num_classes, activation = 'softmax')(x)
-model = Model(input_, out)
+def create_model():
+    input_ = Input(shape = (3,100,))
+    x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x)
+    x = Conv1D(512, (3), padding="same", activation = "relu")(x)
+    x = Dropout(0.2)(x)
+    x = BatchNormalization()(x)
+    x = Flatten()(x)
+    x = Dense(1024, activation = "relu")(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x)
+    x = Dense(1024, activation = "relu")(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x)
+    x = Dense(1024, activation = "relu")(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x) 
+    out = Dense(num_classes, activation = 'softmax')(x)
+    classifier = Model(input_, out)
 
-print(model.summary())
-
-# adam optimizer
-opt = keras.optimizers.Adam(learning_rate = 1e-5)
-model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
-
-# callbacks
-mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_biovec_check.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
-reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
-callbacks_list = [reduce_lr, mcp_save]
+    return classifier
 
 # training
-num_epochs = 500
-with tf.device('/gpu:0'): # use gpu
-    history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = test_gen, validation_steps = len(X_test)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
-    model = load_model('saved_models/cnn_biovec_check.h5', custom_objects={'sensitivity':sensitivity})
+kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
-with tf.device('/cpu:0'):
-    y_pred = model.predict(X_test)
-    print("Classification Report Validation")
-    cr = classification_report(y_test, y_pred.argmax(axis=1), output_dict = True)
-    df = pd.DataFrame(cr).transpose()
-    df.to_csv('CR_CNN_BioVec.csv')
-    print("Confusion Matrix")
-    matrix = confusion_matrix(y_test, y_pred.argmax(axis=1))
-    print(matrix)
-    print("F1 Score")
-    print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
+# training
+num_epochs = 100
+
+fold = 1
+
+val_f1score = []
+val_acc = []
+test_f1score = []
+test_acc = []
+
+with tf.device('/gpu:0'):
+    for train_index, val_index in kf.split(X):
+        print("#############################")
+        print("Training with Fold " + str(fold))
+        print("#############################")
+
+        # model
+        model = create_model()
+
+        # adam optimizer
+        opt = keras.optimizers.Adam(learning_rate = 1e-5)
+        model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
+
+        # callbacks
+        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_biovec_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+        reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
+        callbacks_list = [reduce_lr, mcp_save]
+
+        # test and train generators
+        X_train, X_val = X[train_index], X[val_index]
+        y_train, y_val = y[train_index], y[val_index]
+        train_gen = bm_generator(X_train, y_train, bs)
+        val_gen = bm_generator(X_val, y_val, bs)
+        history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
+        model = load_model('saved_models/cnn_biovec_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
+
+        print("Validation")
+        y_pred_val = model.predict(X_val)
+        f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
+        acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
+        val_f1score.append(f1_score_val)
+        val_acc.append(acc_score_val)
+        print("F1 Score: ", val_f1score)
+        print("Acc Score", val_acc)
+
+        print("Testing")
+        y_pred_test = model.predict(X_test)
+        f1_score_test = f1_score(y_test, y_pred_test.argmax(axis=1), average = 'weighted')
+        acc_score_test = accuracy_score(y_test, y_pred_test.argmax(axis=1))
+        test_f1score.append(f1_score_test)
+        test_acc.append(acc_score_test)
+        print("F1 Score: ", test_f1score)
+        print("Acc Score", test_acc)
+
+        fold += 1
+
+print("Validation F1 Score: " + str(np.mean(val_f1score)) + ' +- ' + str(np.std(val_f1score)))
+print("Validation Acc Score: " + str(np.mean(val_acc)) + ' +- ' + str(np.std(val_acc)))
+print("Test F1 Score: " + str(np.mean(test_f1score)) + ' +- ' + str(np.std(test_f1score)))
+print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc)))
+
+# with tf.device('/cpu:0'):
+#     y_pred = model.predict(X_test)
+#     print("Classification Report Validation")
+#     cr = classification_report(y_test, y_pred.argmax(axis=1), output_dict = True)
+#     df = pd.DataFrame(cr).transpose()
+#     df.to_csv('prediction_analysis/CR_CNN_BioVec.csv')
+#     print("Confusion Matrix")
+#     matrix = confusion_matrix(y_test, y_pred.argmax(axis=1))
+#     print(matrix)
+#     print("F1 Score")
+#     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
 /saved_models/cnn_biovec.h5
-loss: 0.0054 - accuracy: 0.9982 - sensitivity: 0.9981 - 
-val_loss: 0.2778 - val_accuracy: 0.9678 - val_sensitivity: 0.9668
+Validation
+F1 Score:  [0.9514033426080701, 0.9531084375328248, 0.9509483321633397, 0.9506584852630235, 0.9523130641527207]
+Acc Score [0.9516039940514128, 0.9533460803059274, 0.9512428298279159, 0.9509666454217124, 0.952516518302917]
+Testing
+F1 Score:  [0.38415564733634944, 0.3917248789216974, 0.3838550058809177, 0.38553001275653426, 0.38274742160093117]
+Acc Score [0.39488682624979643, 0.40066764370623675, 0.3940726266080443, 0.3940726266080443, 0.3937469467513434]
+Validation F1 Score: 0.9516863323439958 +- 0.0009051378908556178
+Validation Acc Score: 0.9519352135819771 +- 0.0008781441809555962
+Test F1 Score: 0.385602593299286 +- 0.0031870791960400134
+Test Acc Score: 0.39548933398469305 +- 0.0026164074604650527
 '''

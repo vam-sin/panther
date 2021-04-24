@@ -44,23 +44,19 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('SSG5_Train_50.csv')
+ds_train = pd.read_csv('../../data/v4.3/SSG5_Train_50.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = 'SSG5_Train_50.npz'
+filename = '../processed_data/SSG5_Train_50_BioVec.npz'
 X = np.load(filename)['arr_0']
 
-X = np.expand_dims(X, axis = 1)
-
-ds_test = pd.read_csv('SSG5_Test_50.csv')
+ds_test = pd.read_csv('../../data/v4.3/SSG5_Test_50.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = 'SSG5_Test_50.npz'
+filename = '../processed_data/SSG5_Test_50_BioVec.npz'
 X_test = np.load(filename)['arr_0']
-
-X_test = np.expand_dims(X_test, axis = 1)
 
 # y process
 y_tot = []
@@ -104,7 +100,7 @@ def bm_generator(X_t, y_t, batch_size):
             if val == len(X_t):
                 val = 0
 
-            X_batch.append(X_t[val])
+            X_batch.append(np.reshape(X_t[val], (300,)))
             y_enc = np.zeros((num_classes))
             y_enc[y_t[val]] = 1
             y_batch.append(y_enc)
@@ -132,23 +128,16 @@ def sensitivity(y_true, y_pred):
 
 # Keras NN Model
 def create_model():
-    input_ = Input(shape = (1,1024,))
-    x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
+    input_ = Input(shape = (300,))
+    x = Dense(1024, activation = "relu")(input_)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
-    x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-    x = Dropout(0.2)(x)
-    x = BatchNormalization()(x)
-    x = Flatten()(x)
+    x = Dropout(0.5)(x)
     x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
-    x = Dense(1024, activation = "relu")(x)
+    x = Dropout(0.5)(x)
+    x = Dense(num_classes, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
-    x = Dense(1024, activation = "relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.2)(x) 
+    x = Dropout(0.5)(x) 
     out = Dense(num_classes, activation = 'softmax')(x)
     classifier = Model(input_, out)
 
@@ -181,7 +170,7 @@ with tf.device('/gpu:0'):
         model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
 
         # callbacks
-        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_protbert_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/ann_biovec_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
         reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
         callbacks_list = [reduce_lr, mcp_save]
 
@@ -191,19 +180,19 @@ with tf.device('/gpu:0'):
         train_gen = bm_generator(X_train, y_train, bs)
         val_gen = bm_generator(X_val, y_val, bs)
         history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
-        model = load_model('saved_models/cnn_protbert_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
+        model = load_model('saved_models/ann_biovec_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
 
-        print("Validation")
-        y_pred_val = model.predict(X_val)
-        f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
-        acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
-        val_f1score.append(f1_score_val)
-        val_acc.append(acc_score_val)
-        print("F1 Score: ", val_f1score)
-        print("Acc Score", val_acc)
+        # print("Validation")
+        # y_pred_val = model.predict(X_val)
+        # f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
+        # acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
+        # val_f1score.append(f1_score_val)
+        # val_acc.append(acc_score_val)
+        # print("F1 Score: ", val_f1score)
+        # print("Acc Score", val_acc)
 
         print("Testing")
-        y_pred_test = model.predict(X_test)
+        y_pred_test = model.predict(np.reshape(X_test, (12282, 300)))
         f1_score_test = f1_score(y_test, y_pred_test.argmax(axis=1), average = 'weighted')
         acc_score_test = accuracy_score(y_test, y_pred_test.argmax(axis=1))
         test_f1score.append(f1_score_test)
@@ -231,15 +220,7 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 #     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
-/saved_models/cnn_protbert.h5 (beaker)
-Validation
-F1 Score:  [0.9932630840923107, 0.9938361862890777, 0.9934128741437723, 0.9939509025756322, 0.9930279784821618]
-Acc Score [0.9932653494794986, 0.9938177182919057, 0.9934140641597621, 0.9939451880178458, 0.993031506936625]
-Testing
-F1 Score:  [0.8733478294183151, 0.8742538152581026, 0.8733256546806225, 0.8713779923050177, 0.8694803921363469]
-Acc Score [0.8750203549910438, 0.8760788145253217, 0.8751831949193942, 0.8733919557075395, 0.8711121967106334]
-Validation F1 Score: 0.993498205116591 +- 0.0003472297859012753
-Validation Acc Score: 0.9934947653771274 +- 0.00034086122211284415
-Test F1 Score: 0.872357136759681 +- 0.0017176304447937087
-Test Acc Score: 0.8741573033707866 +- 0.0017520244463524318
+/saved_models/ann_biovec.h5
+Test F1 Score: 0.4392750576183766 +- 0.006300326187570515
+Test Acc Score: 0.45100146555935516 +- 0.006768619434953569
 '''
