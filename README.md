@@ -29,18 +29,21 @@ The sequences in this dataset were encoded into vector format using a number of 
 
 ## BioVec Embedding Technique
 
-| Model      | Accuracy | Sensitivity | 
+| Model      | Accuracy | F1-Score | 
 | ----------- | ----------- | ----------- |
-| CNN   | 96.78%        | 96.68%        |
+| ANN   | 0.451 +- 0.0067%        | 0.439 +- 0.0063%        |
+| CNN   | 0.395 +- 0.0026%        | 0.385 +- 0.0031%        |
 
 ## One-Hot Encoding
 
-| Model      | Accuracy | Sensitivity | 
+| Model      | Accuracy | F1-Score | 
 | ----------- | ----------- | ----------- |
-| CNN   | 98.82%        | 98.76%        |
+| ANN   | 0.596 +- 0.0187%        | 0.605 +- 0.0153%        |
+| CNN   | 0.699 +- 0.0029%        | 0.697 +- 0.0031%        |
 
 ## ProtBert Embedding
 
-| Model      | Accuracy | Sensitivity | 
+| Model      | Accuracy | F1-Score | 
 | ----------- | ----------- | ----------- |
-| CNN   | 99.58%        | 99.57%        |
+| ANN   | 0.884 +- 0.0015%        | 0.883 +- 0.0015%        |
+| CNN   | 0.874 +- 0.0017%        | 0.872 +- 0.0017%        |
