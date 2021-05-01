@@ -8,7 +8,7 @@ import pickle
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras import optimizers, regularizers
-from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, LeakyReLU, Add
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, LeakyReLU, Add, MaxPooling1D
 from tensorflow.keras.regularizers import l2
 from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
@@ -44,20 +44,20 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('../../data/v4.3/SSG5_Train.csv')
+ds_train = pd.read_csv('SSG5_Train_50.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Train_ProtBert.npz'
+filename = 'SSG5_Train_50.npz'
 X = np.load(filename)['arr_0']
 
 X = np.expand_dims(X, axis = 1)
 
-ds_test = pd.read_csv('../../data/v4.3/SSG5_Test.csv')
+ds_test = pd.read_csv('SSG5_Test_50.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Test_ProtBert.npz'
+filename = 'SSG5_Test_50.npz'
 X_test = np.load(filename)['arr_0']
 
 X_test = np.expand_dims(X_test, axis = 1)
@@ -135,22 +135,17 @@ def create_model():
     input_ = Input(shape = (1,1024,))
     x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
     x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
-    x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-    x = Dropout(0.4)(x)
+    x = Dropout(0.2)(x)
+    x = MaxPooling1D(pool_size=2, strides=None, padding="same")(x)
+    x = Dropout(0.2)(x)
     x = BatchNormalization()(x)
     x = Flatten()(x)
     x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
-    x = Dense(1024, activation = "relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
-    x = Dense(1024, activation = "relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.4)(x) 
+    x = Dropout(0.2)(x)
     out = Dense(num_classes, activation = 'softmax')(x)
     classifier = Model(input_, out)
+    print(classifier.summary())
 
     return classifier
 
@@ -181,7 +176,7 @@ with tf.device('/gpu:0'):
         model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
 
         # callbacks
-        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_protbert_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/deepfam_protbert_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
         reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
         callbacks_list = [reduce_lr, mcp_save]
 
@@ -191,7 +186,7 @@ with tf.device('/gpu:0'):
         train_gen = bm_generator(X_train, y_train, bs)
         val_gen = bm_generator(X_val, y_val, bs)
         history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
-        model = load_model('saved_models/cnn_protbert_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
+        model = load_model('saved_models/deepfam_protbert_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
 
         print("Validation")
         y_pred_val = model.predict(X_val)
@@ -233,13 +228,13 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 '''
 /saved_models/cnn_protbert.h5 (beaker)
 Validation
-F1 Score:  [0.9463565712610627, 0.9363446733950356, 0.9358150984593929, 0.9447112938045463, 0.9372677599206842]
-Acc Score [0.9473506581167735, 0.937619529755878, 0.937113286083924, 0.9452101029420037, 0.9378410305450864]
+F1 Score:  [0.9932630840923107, 0.9938361862890777, 0.9934128741437723, 0.9939509025756322, 0.9930279784821618]
+Acc Score [0.9932653494794986, 0.9938177182919057, 0.9934140641597621, 0.9939451880178458, 0.993031506936625]
 Testing
-F1 Score:  [0.8273251419977825, 0.8117335442380459, 0.8182856099357064, 0.8312124419156879, 0.8079935380887838]
-Acc Score [0.8296278682677446, 0.8135774580905957, 0.8198787302342171, 0.8342646534300321, 0.811318511473071]
-Validation F1 Score: 0.9400990793681444 +- 0.004492063072761123
-Validation Acc Score: 0.941026921488733 +- 0.004348917419761432
-Test F1 Score: 0.8193100552352013 +- 0.00885917594238159
-Test Acc Score: 0.8217334442991321 +- 0.008919462238793882
+F1 Score:  [0.8733478294183151, 0.8742538152581026, 0.8733256546806225, 0.8713779923050177, 0.8694803921363469]
+Acc Score [0.8750203549910438, 0.8760788145253217, 0.8751831949193942, 0.8733919557075395, 0.8711121967106334]
+Validation F1 Score: 0.993498205116591 +- 0.0003472297859012753
+Validation Acc Score: 0.9934947653771274 +- 0.00034086122211284415
+Test F1 Score: 0.872357136759681 +- 0.0017176304447937087
+Test Acc Score: 0.8741573033707866 +- 0.0017520244463524318
 '''

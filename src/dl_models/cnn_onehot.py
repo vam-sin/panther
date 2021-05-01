@@ -48,19 +48,19 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('../../data/v4.3/SSG5_Train_50.csv')
+ds_train = pd.read_csv('../../data/v4.3/SSG5_Train.csv')
 
 X = list(ds_train["Sequence"])
 y = list(ds_train["SSG5_Class"])
 
-ds_test = pd.read_csv('../../data/v4.3/SSG5_Test_50.csv')
+ds_test = pd.read_csv('../../data/v4.3/SSG5_Test.csv')
 
-X_test = np.load('../processed_data/SSG5_Test_50_OneHot.npz')['arr_0']
+X_test = np.load('../processed_data/SSG5_Test_OneHot.npz')['arr_0']
 y_test = list(ds_test["SSG5_Class"])
 
-# maximum sequence length is 606 residues in the ds
+# maximum sequence length is 694 residues in the ds
 
-max_length = 606
+max_length = 694
 
 codes = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L',
          'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
@@ -200,7 +200,7 @@ kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 # training
 num_epochs = 20
 
-fold = 1
+fold = 2
 
 val_f1score = []
 val_acc = []
@@ -230,7 +230,7 @@ with tf.device('/gpu:0'):
         y_train, y_val = y[train_index], y[val_index]
         train_gen = bm_generator(X_train, y_train, bs)
         val_gen = bm_generator(X_val, y_val, bs)
-        history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
+        #history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
         model = load_model('saved_models/cnn_onehot_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
 
         # print("Validation")
@@ -269,8 +269,8 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 
 '''
 saved_models/cnn_onehot.h5
-F1 Score: [0.6943895505995065, 0.7007527116386166]
-0.6975711311190615 +- 0.003181580519555083
-Accuracy: [0.6967920534114965, 0.7026542908321121]
-0.6997231721218042 +- 0.0029311187103077674
+F1 Score:  [0.6072214435021471, 0.6008409878453453]
+0.6040312156737462 +- 0.0031902278284008934
+Acc Score [0.6088455593865176, 0.6058732612055642]
+0.6073594102960409 +- 0.0014861490904767294
 '''

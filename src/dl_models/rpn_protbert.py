@@ -153,17 +153,17 @@ def create_model():
     x = Dropout(0.4)(x)
 
     # Residual Blocks
-    x = ResBlock(x)
-    x = ResBlock(x)
-    x = ResBlock(x)
-    x = ResBlock(x)
+    # x = ResBlock(x)
+    # x = ResBlock(x)
+    # x = ResBlock(x)
+    # x = ResBlock(x)
 
     # sequence layers
     x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
-    x = Dropout(0.3)(x)
-    x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
-    x = Dropout(0.3)(x)
-    x = SeqSelfAttention(attention_activation = "sigmoid")(x)
+    # x = Dropout(0.3)(x)
+    # x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
+    # x = Dropout(0.3)(x)
+    # x = SeqSelfAttention(attention_activation = "sigmoid")(x)
 
     x = Flatten()(x)
 
@@ -253,5 +253,8 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 
 '''
 /saved_models/rpn_protbert.h5 (beaker)
-
+F1 Score:  [0.8456395821479892, 0.8465736705366244]
+0.8461066263423067 +- 0.0004670441943175896
+Acc Score [0.8484774466699234, 0.8496987461325517]
+0.8490880964012375 +- 0.000610649731314139
 '''

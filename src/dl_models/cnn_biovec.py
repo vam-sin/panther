@@ -44,18 +44,18 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('../../data/v4.3/SSG5_Train_50.csv')
+ds_train = pd.read_csv('../../data/v4.3/SSG5_Train.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Train_50.npz'
+filename = '../processed_data/SSG5_Train_BioVec.npz'
 X = np.load(filename)['arr_0']
 
-ds_test = pd.read_csv('../../data/v4.3/SSG5_Test_50.csv')
+ds_test = pd.read_csv('../../data/v4.3/SSG5_Test.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Test_50.npz'
+filename = '../processed_data/SSG5_Test_BioVec.npz'
 X_test = np.load(filename)['arr_0']
 
 # y process
@@ -131,20 +131,20 @@ def create_model():
     input_ = Input(shape = (3,100,))
     x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(0.5)(x)
     x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(0.5)(x)
     x = BatchNormalization()(x)
     x = Flatten()(x)
     x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(0.5)(x)
     x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(0.5)(x)
     x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x) 
+    x = Dropout(0.5)(x) 
     out = Dense(num_classes, activation = 'softmax')(x)
     classifier = Model(input_, out)
 
@@ -154,7 +154,7 @@ def create_model():
 kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
 # training
-num_epochs = 100
+num_epochs = 200
 
 fold = 1
 
@@ -229,13 +229,12 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 '''
 /saved_models/cnn_biovec.h5
 Validation
-F1 Score:  [0.9514033426080701, 0.9531084375328248, 0.9509483321633397, 0.9506584852630235, 0.9523130641527207]
-Acc Score [0.9516039940514128, 0.9533460803059274, 0.9512428298279159, 0.9509666454217124, 0.952516518302917]
+F1 Score:  [0.5835075102406708, 0.5635007271367493, 0.5703226512909896]
+Acc Score [0.5944425694678817, 0.5730115873551581, 0.5806052424344695]
+
 Testing
-F1 Score:  [0.38415564733634944, 0.3917248789216974, 0.3838550058809177, 0.38553001275653426, 0.38274742160093117]
-Acc Score [0.39488682624979643, 0.40066764370623675, 0.3940726266080443, 0.3940726266080443, 0.3937469467513434]
-Validation F1 Score: 0.9516863323439958 +- 0.0009051378908556178
-Validation Acc Score: 0.9519352135819771 +- 0.0008781441809555962
-Test F1 Score: 0.385602593299286 +- 0.0031870791960400134
-Test Acc Score: 0.39548933398469305 +- 0.0026164074604650527
+F1 Score:  [0.36540203374753927, 0.348616103797984, 0.34076702260463043]
+0.35159505338338454 +- 0.010275425343250735
+Acc Score: [0.37534181429080965, 0.3592914041136607, 0.35180121269765785]
+0.3621448103673761 +- 0.009819926214197737
 '''
