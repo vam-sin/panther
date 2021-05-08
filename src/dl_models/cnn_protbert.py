@@ -44,20 +44,20 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('../../data/v4.3/SSG5_Train.csv')
+ds_train = pd.read_csv('SSG5_Train.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Train_ProtBert.npz'
+filename = 'SSG5_Train_ProtBert.npz'
 X = np.load(filename)['arr_0']
 
 X = np.expand_dims(X, axis = 1)
 
-ds_test = pd.read_csv('../../data/v4.3/SSG5_Test.csv')
+ds_test = pd.read_csv('SSG5_Test.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Test_ProtBert.npz'
+filename = 'SSG5_Test_ProtBert.npz'
 X_test = np.load(filename)['arr_0']
 
 X_test = np.expand_dims(X_test, axis = 1)
@@ -135,20 +135,20 @@ def create_model():
     input_ = Input(shape = (1,1024,))
     x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
     x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
+    x = Dropout(0.1)(x)
     x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-    x = Dropout(0.4)(x)
+    x = Dropout(0.1)(x)
     x = BatchNormalization()(x)
     x = Flatten()(x)
     x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
+    x = Dropout(0.1)(x)
     x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
+    x = Dropout(0.1)(x)
     x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.4)(x) 
+    x = Dropout(0.1)(x) 
     out = Dense(num_classes, activation = 'softmax')(x)
     classifier = Model(input_, out)
 
@@ -158,7 +158,7 @@ def create_model():
 kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
 # training
-num_epochs = 100
+num_epochs = 200
 
 fold = 1
 
@@ -182,7 +182,7 @@ with tf.device('/gpu:0'):
 
         # callbacks
         mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_protbert_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
-        reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
+        reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=15, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
         callbacks_list = [reduce_lr, mcp_save]
 
         # test and train generators
@@ -193,14 +193,14 @@ with tf.device('/gpu:0'):
         history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
         model = load_model('saved_models/cnn_protbert_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
 
-        print("Validation")
-        y_pred_val = model.predict(X_val)
-        f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
-        acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
-        val_f1score.append(f1_score_val)
-        val_acc.append(acc_score_val)
-        print("F1 Score: ", val_f1score)
-        print("Acc Score", val_acc)
+        # print("Validation")
+        # y_pred_val = model.predict(X_val)
+        # f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
+        # acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
+        # val_f1score.append(f1_score_val)
+        # val_acc.append(acc_score_val)
+        # print("F1 Score: ", val_f1score)
+        # print("Acc Score", val_acc)
 
         print("Testing")
         y_pred_test = model.predict(X_test)
@@ -219,6 +219,7 @@ print("Test F1 Score: " + str(np.mean(test_f1score)) + ' +- ' + str(np.std(test_
 print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc)))
 
 # with tf.device('/cpu:0'):
+#     model = load_model('saved_models/cnn_protbert_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
 #     y_pred = model.predict(X_test)
 #     print("Classification Report Validation")
 #     cr = classification_report(y_test, y_pred.argmax(axis=1), output_dict = True)
@@ -231,15 +232,10 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 #     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
-/saved_models/cnn_protbert.h5 (beaker)
-Validation
-F1 Score:  [0.9463565712610627, 0.9363446733950356, 0.9358150984593929, 0.9447112938045463, 0.9372677599206842]
-Acc Score [0.9473506581167735, 0.937619529755878, 0.937113286083924, 0.9452101029420037, 0.9378410305450864]
+/saved_models/cnn_protbert.h5  (Beaker - After xhit removal)
 Testing
-F1 Score:  [0.8273251419977825, 0.8117335442380459, 0.8182856099357064, 0.8312124419156879, 0.8079935380887838]
-Acc Score [0.8296278682677446, 0.8135774580905957, 0.8198787302342171, 0.8342646534300321, 0.811318511473071]
-Validation F1 Score: 0.9400990793681444 +- 0.004492063072761123
-Validation Acc Score: 0.941026921488733 +- 0.004348917419761432
-Test F1 Score: 0.8193100552352013 +- 0.00885917594238159
-Test Acc Score: 0.8217334442991321 +- 0.008919462238793882
+F1 Score:  [0.8273098317251348, 0.8266195053887482, 0.8319043841965194, 0.8297798456978968, 0.8259489014804651]
+Acc Score [0.8302574618364092, 0.8300296195033037, 0.834814308498519, 0.8318523581681476, 0.8291182501708817]
+Test F1 Score: 0.828312493697753 +- 0.002214177403138218
+Test Acc Score: 0.8312143996354523 +- 0.00200397661675061
 '''

@@ -1,21 +1,26 @@
-# libraries
+#libraries
 import pandas as pd 
-import numpy as np 
 from sklearn import preprocessing
-import biovec
-import math
+import numpy as np 
 import pickle
+from sklearn.preprocessing import OneHotEncoder 
+from keras.preprocessing.sequence import pad_sequences
+from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
+from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
+import math
+from keras.utils import to_categorical
 import tensorflow as tf
-from keras.models import Model, load_model
-from keras import optimizers, regularizers
+from keras.models import Model
+from keras.models import load_model
+from keras import optimizers
 from keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, Add, LSTM, Bidirectional, Reshape
 from keras_self_attention import SeqSelfAttention
 from keras.regularizers import l2
-from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
-from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
+from keras import regularizers
 from keras import backend as K
 import keras
 from sklearn.model_selection import KFold
@@ -45,23 +50,21 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('SSG5_Train_50.csv')
+# dataset import 
+ds_train = pd.read_csv('SSG5_Train.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = 'SSG5_Train_50.npz'
+filename = 'SSG5_Train_BioVec.npz'
 X = np.load(filename)['arr_0']
 
-X = np.expand_dims(X, axis = 1)
-
-ds_test = pd.read_csv('SSG5_Test_50.csv')
+ds_test = pd.read_csv('SSG5_Test.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = 'SSG5_Test_50.npz'
+filename = 'SSG5_Test_BioVec.npz'
 X_test = np.load(filename)['arr_0']
-
-X_test = np.expand_dims(X_test, axis = 1)
+# X_test = np.expand_dims(X_test, axis = 1)
 
 # y process
 y_tot = []
@@ -131,46 +134,18 @@ def sensitivity(y_true, y_pred):
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     return true_positives / (possible_positives + K.epsilon())
 
-def ResBlock(inp):
-    x = Conv1D(512, (3), padding="same", activation = "relu")(inp)
-    x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
-    x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
-    x = Add()([x, inp])
-
-    return x
-
 # Keras NN Model
 def create_model():
-    # keras nn model
-    # (Res-Blocks x k) + (LSTM x 2) + Attention Layer
-    input_ = Input(shape = (1, 1024,))
-
-    x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
-    x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
-
-    # Residual Blocks
-    # x = ResBlock(x)
-    # x = ResBlock(x)
-    # x = ResBlock(x)
-    # x = ResBlock(x)
-
-    # sequence layers
+    input_ = Input(shape = (3,100,))
+    x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(input_)
+    x = Dropout(0.2)(x)
     x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
-    # x = Dropout(0.3)(x)
-    # x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
-    # x = Dropout(0.3)(x)
-    # x = SeqSelfAttention(attention_activation = "sigmoid")(x)
-
+    x = Dropout(0.2)(x)
+    x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
+    x = Dropout(0.2)(x)
+    x = SeqSelfAttention(attention_activation='sigmoid')(x)
     x = Flatten()(x)
-
-    x = Dense(1024, activation = "relu")(x)
-    x = Dropout(0.5)(x)
     out = Dense(num_classes, activation = 'softmax')(x)
-
     classifier = Model(input_, out)
 
     return classifier
@@ -179,7 +154,7 @@ def create_model():
 kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
 # training
-num_epochs = 100
+num_epochs = 200
 
 fold = 1
 
@@ -202,7 +177,7 @@ with tf.device('/gpu:0'):
         model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy'])
 
         # callbacks
-        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/rpn_protbert_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/able_biovec_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
         reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
         callbacks_list = [reduce_lr, mcp_save]
 
@@ -212,7 +187,7 @@ with tf.device('/gpu:0'):
         train_gen = bm_generator(X_train, y_train, bs)
         val_gen = bm_generator(X_val, y_val, bs)
         history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
-        model = load_model('saved_models/rpn_protbert_' + str(fold) + '.h5', custom_objects=SeqSelfAttention.get_custom_objects())
+        model = load_model('saved_models/able_biovec_' + str(fold) + '.h5', custom_objects=SeqSelfAttention.get_custom_objects())
 
         # print("Validation")
         # y_pred_val = model.predict(X_val)
@@ -252,9 +227,10 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 #     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
-/saved_models/rpn_protbert.h5 (beaker)
-F1 Score:  [0.8456395821479892, 0.8465736705366244]
-0.8461066263423067 +- 0.0004670441943175896
-Acc Score [0.8484774466699234, 0.8496987461325517]
-0.8490880964012375 +- 0.000610649731314139
+/saved_models/able_biovec.h5 (Beaker - After XHit Remove)
+Testing
+F1 Score:  [0.4411877195018747, 0.43703233341031544, 0.44930610300580154, 0.43959753476858626, 0.437351687143758]
+Acc Score [0.44622920938710414, 0.4464570517202096, 0.4585326953748006, 0.4479380268853953, 0.44520391888812944]
+Test F1 Score: 0.44089507556606716 +- 0.004471935009801305
+Test Acc Score: 0.4488721804511278 +- 0.004908614411452995
 '''

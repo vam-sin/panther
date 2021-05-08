@@ -48,19 +48,19 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('../../data/v4.3/SSG5_Train_50.csv')
+ds_train = pd.read_csv('SSG5_Train.csv')
 
 X = list(ds_train["Sequence"])
 y = list(ds_train["SSG5_Class"])
 
-ds_test = pd.read_csv('../../data/v4.3/SSG5_Test_50.csv')
+ds_test = pd.read_csv('SSG5_Test.csv')
 
-X_test = np.load('../processed_data/SSG5_Test_50_OneHot.npz')['arr_0']
+X_test = np.load('SSG5_Test_OneHot.npz')['arr_0']
 y_test = list(ds_test["SSG5_Class"])
 
-# maximum sequence length is 606 residues in the ds
+# maximum sequence length is 694 residues in the ds
 
-max_length = 606
+max_length = 1203
 
 codes = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L',
          'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
@@ -152,7 +152,7 @@ def bm_generator(X_t, y_t, batch_size):
         X_batch = np.asarray(to_cat(X_batch))
         X_batchT = []
         for arr in X_batch:
-            X_batchT.append(np.reshape(arr.T, (max_length*21,)))
+            X_batchT.append(np.reshape(arr.T, (max_length*21)))
         X_batch = np.asarray(X_batchT)
         # print(X_batch.shape)
         y_batch = np.asarray(y_batch)
@@ -191,7 +191,7 @@ def create_model():
 kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
 # training
-num_epochs = 20
+num_epochs = 200
 
 fold = 1
 
@@ -262,8 +262,4 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 
 '''
 saved_models/ann_onehot.h5
-F1 Score:  [0.5882412842932357, 0.6253510795443845, 0.6020919636460856]
-0.6052281091612354 +- 0.015311450669671833
-Acc Score [0.5749063670411985, 0.6208272268360202, 0.5952613580850025]
-0.5969983173207404 +- 0.018787302655674666
 '''

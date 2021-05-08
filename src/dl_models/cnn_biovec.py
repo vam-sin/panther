@@ -44,18 +44,18 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('../../data/v4.3/SSG5_Train.csv')
+ds_train = pd.read_csv('SSG5_Train.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Train_BioVec.npz'
+filename = 'SSG5_Train_BioVec.npz'
 X = np.load(filename)['arr_0']
 
-ds_test = pd.read_csv('../../data/v4.3/SSG5_Test.csv')
+ds_test = pd.read_csv('SSG5_Test.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Test_BioVec.npz'
+filename = 'SSG5_Test_BioVec.npz'
 X_test = np.load(filename)['arr_0']
 
 # y process
@@ -118,7 +118,7 @@ bs = 256
 # train_gen = bm_generator(X_train, y_train, bs)
 # test_gen = bm_generator(X_test, y_test, bs)
 
-# num_classes = 1707
+# num_classes = 2821
 
 # sensitivity metric
 def sensitivity(y_true, y_pred):
@@ -227,14 +227,15 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 #     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
-/saved_models/cnn_biovec.h5
+/saved_models/cnn_biovec.h5 (Beaker - After xhit removal)
 Validation
-F1 Score:  [0.5835075102406708, 0.5635007271367493, 0.5703226512909896]
-Acc Score [0.5944425694678817, 0.5730115873551581, 0.5806052424344695]
-
+F1 Score:  [0.5838667133997182, 0.5754381949211044, 0.577021838976692, 0.5890486503880262, 0.5791360495478941]
+Acc Score [0.5936283185840708, 0.5846607669616519, 0.5889085545722714, 0.6008849557522123, 0.5892383031447282]
 Testing
-F1 Score:  [0.36540203374753927, 0.348616103797984, 0.34076702260463043]
-0.35159505338338454 +- 0.010275425343250735
-Acc Score: [0.37534181429080965, 0.3592914041136607, 0.35180121269765785]
-0.3621448103673761 +- 0.009819926214197737
+F1 Score:  [0.3546612685959509, 0.34543863312959594, 0.3464429137131704, 0.3753347981828833, 0.3583211033972689]
+Acc Score [0.3632946001367054, 0.3548644338118022, 0.35509227614490774, 0.38266119845067215, 0.3673957621326042]
+Validation F1 Score: 0.5809022894466869 +- 0.004963563924733047
+Validation Acc Score: 0.591464179802987 +- 0.005499212482830391
+Test F1 Score: 0.35603974340377387 +- 0.010806355669699987
+Test Acc Score: 0.36466165413533835 +- 0.010206726212916697
 '''

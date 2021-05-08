@@ -1,22 +1,28 @@
-# libraries
+#libraries
 import pandas as pd 
-import numpy as np 
 from sklearn import preprocessing
-import biovec
-import math
+import numpy as np 
 import pickle
-import tensorflow as tf
-from tensorflow.keras.models import Model, load_model
-from tensorflow.keras import optimizers, regularizers
-from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, LeakyReLU, Add, MaxPooling1D
-from tensorflow.keras.regularizers import l2
-from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
+from sklearn.preprocessing import OneHotEncoder 
+from keras.preprocessing.sequence import pad_sequences
 from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
+from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
+import math
+from keras.utils import to_categorical
+import tensorflow as tf
+from keras.models import Model
+from keras.models import load_model
+from keras import optimizers
+from keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, Add, LSTM, Bidirectional, Reshape
+from keras_self_attention import SeqSelfAttention
+from keras.regularizers import l2
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
-from tensorflow.keras import backend as K
-from tensorflow import keras
+from keras import regularizers
+from keras import backend as K
+import keras
 from sklearn.model_selection import KFold
 
 # GPU config for Vamsi's Laptop
@@ -44,20 +50,20 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('SSG5_Train_50.csv')
+ds_train = pd.read_csv('SSG5_Train.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = 'SSG5_Train_50.npz'
+filename = 'SSG5_Train_ProtBert.npz'
 X = np.load(filename)['arr_0']
 
 X = np.expand_dims(X, axis = 1)
 
-ds_test = pd.read_csv('SSG5_Test_50.csv')
+ds_test = pd.read_csv('SSG5_Test.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = 'SSG5_Test_50.npz'
+filename = 'SSG5_Test_ProtBert.npz'
 X_test = np.load(filename)['arr_0']
 
 X_test = np.expand_dims(X_test, axis = 1)
@@ -133,19 +139,16 @@ def sensitivity(y_true, y_pred):
 # Keras NN Model
 def create_model():
     input_ = Input(shape = (1,1024,))
-    x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
-    x = BatchNormalization()(x)
+    x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(input_)
     x = Dropout(0.2)(x)
-    x = MaxPooling1D(pool_size=2, strides=None, padding="same")(x)
+    x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
     x = Dropout(0.2)(x)
-    x = BatchNormalization()(x)
+    x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
+    x = Dropout(0.2)(x)
+    x = SeqSelfAttention(attention_activation='sigmoid')(x)
     x = Flatten()(x)
-    x = Dense(1024, activation = "relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
     out = Dense(num_classes, activation = 'softmax')(x)
     classifier = Model(input_, out)
-    print(classifier.summary())
 
     return classifier
 
@@ -153,7 +156,7 @@ def create_model():
 kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
 # training
-num_epochs = 100
+num_epochs = 200
 
 fold = 1
 
@@ -173,10 +176,10 @@ with tf.device('/gpu:0'):
 
         # adam optimizer
         opt = keras.optimizers.Adam(learning_rate = 1e-5)
-        model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
+        model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy'])
 
         # callbacks
-        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/deepfam_protbert_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/able_protbert_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
         reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
         callbacks_list = [reduce_lr, mcp_save]
 
@@ -186,16 +189,16 @@ with tf.device('/gpu:0'):
         train_gen = bm_generator(X_train, y_train, bs)
         val_gen = bm_generator(X_val, y_val, bs)
         history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
-        model = load_model('saved_models/deepfam_protbert_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
+        model = load_model('saved_models/able_protbert_' + str(fold) + '.h5', custom_objects=SeqSelfAttention.get_custom_objects())
 
-        print("Validation")
-        y_pred_val = model.predict(X_val)
-        f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
-        acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
-        val_f1score.append(f1_score_val)
-        val_acc.append(acc_score_val)
-        print("F1 Score: ", val_f1score)
-        print("Acc Score", val_acc)
+        # print("Validation")
+        # y_pred_val = model.predict(X_val)
+        # f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
+        # acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
+        # val_f1score.append(f1_score_val)
+        # val_acc.append(acc_score_val)
+        # print("F1 Score: ", val_f1score)
+        # print("Acc Score", val_acc)
 
         print("Testing")
         y_pred_test = model.predict(X_test)
@@ -226,15 +229,10 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 #     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
-/saved_models/cnn_protbert.h5 (beaker)
-Validation
-F1 Score:  [0.9932630840923107, 0.9938361862890777, 0.9934128741437723, 0.9939509025756322, 0.9930279784821618]
-Acc Score [0.9932653494794986, 0.9938177182919057, 0.9934140641597621, 0.9939451880178458, 0.993031506936625]
+/saved_models/able_protbert.h5 (Beaker - After Xhit remove)
 Testing
-F1 Score:  [0.8733478294183151, 0.8742538152581026, 0.8733256546806225, 0.8713779923050177, 0.8694803921363469]
-Acc Score [0.8750203549910438, 0.8760788145253217, 0.8751831949193942, 0.8733919557075395, 0.8711121967106334]
-Validation F1 Score: 0.993498205116591 +- 0.0003472297859012753
-Validation Acc Score: 0.9934947653771274 +- 0.00034086122211284415
-Test F1 Score: 0.872357136759681 +- 0.0017176304447937087
-Test Acc Score: 0.8741573033707866 +- 0.0017520244463524318
+F1 Score:  [0.797703216897555, 0.801172013704434, 0.7968033626566986, 0.7949936294988642, 0.7968233306546217]
+Acc Score [0.8002961950330372, 0.8047391205285942, 0.7998405103668261, 0.7974481658692185, 0.7989291410344042]
+Test F1 Score: 0.7974991106824347 +- 0.0020371576217168307
+Test Acc Score: 0.8002506265664161 +- 0.0024460972916660376
 '''

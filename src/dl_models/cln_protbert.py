@@ -1,27 +1,24 @@
-#libraries
+# libraries
 import pandas as pd 
-from sklearn import preprocessing
 import numpy as np 
-import pickle
-from sklearn.preprocessing import OneHotEncoder 
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
-from sklearn.utils import shuffle
-from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
+from sklearn import preprocessing
+import biovec
 import math
-from tensorflow.keras.utils import to_categorical
+import pickle
 import tensorflow as tf
-from tensorflow.keras.models import Model
-from tensorflow.keras.models import load_model
-from tensorflow.keras import optimizers
-from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, MaxPooling1D
-from tensorflow.keras.regularizers import l2
+from keras.models import Model, load_model
+from keras import optimizers, regularizers
+from keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten, Input, Add, LSTM, Bidirectional, Reshape
+from keras_self_attention import SeqSelfAttention
+from keras.regularizers import l2
+from sklearn.model_selection import train_test_split, KFold, cross_val_score, StratifiedKFold
+from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, classification_report
 import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
-from tensorflow.keras import regularizers
-from tensorflow.keras import backend as K
-from tensorflow import keras
+from keras import backend as K
+import keras
+from sklearn.model_selection import KFold
 
 # GPU config for Vamsi's Laptop
 from tensorflow.compat.v1 import ConfigProto
@@ -50,49 +47,22 @@ if gpus:
 # dataset import 
 ds_train = pd.read_csv('SSG5_Train.csv')
 
-X = list(ds_train["Sequence"])
 y = list(ds_train["SSG5_Class"])
+
+filename = 'SSG5_Train_ProtBert.npz'
+X = np.load(filename)['arr_0']
+
+X = np.expand_dims(X, axis = 1)
 
 ds_test = pd.read_csv('SSG5_Test.csv')
 
-X_test = np.load('SSG5_Test_OneHot.npz')['arr_0']
 y_test = list(ds_test["SSG5_Class"])
 
-# maximum sequence length is 694 residues in the ds
+filename = 'SSG5_Test_ProtBert.npz'
+X_test = np.load(filename)['arr_0']
 
-max_length = 1203
+X_test = np.expand_dims(X_test, axis = 1)
 
-codes = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L',
-         'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
-
-def create_dict(codes):
-	char_dict = {}
-	for index, val in enumerate(codes):
-		char_dict[val] = index+1
-
-	return char_dict
-
-char_dict = create_dict(codes)
-
-print(char_dict)
-print("Dict Length:", len(char_dict))
-
-def integer_encoding(data):
-	"""
-	- Encodes code sequence to integer values.
-	- 20 common amino acids are taken into consideration
-	and rest 4 are categorized as 0.
-	"""
-	encode_list = []
-	for row in data:
-		row_encode = []	
-		for code in row: 
-			row_encode.append(char_dict.get(code, 0))
-		encode_list.append(np.array(row_encode))
-
-	return encode_list
-  
-# y process
 # y process
 y_tot = []
 
@@ -113,20 +83,14 @@ print("Loaded X and y")
 X, y = shuffle(X, y, random_state=42)
 print("Shuffled")
 
-X = integer_encoding(X)
-print("Integer Encoded")
-X = pad_sequences(X, maxlen=max_length, padding='post', truncating='post')
-print("Padded")
+# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# print("Conducted Train-Test Split")
 
-def to_cat(seq_list):
-    out = []
-    for seq in seq_list:
-        arr = np.zeros((max_length, 21))
-        for i in range(len(seq)):
-            arr[i][seq[i]] = 1
-        out.append(arr)
+# num_classes_train = len(np.unique(y_train))
+# num_classes_test = len(np.unique(y_test))
+# print(num_classes_train, num_classes_test)
 
-    return out
+# assert num_classes_test == num_classes_train, "Split not conducted correctly"
 
 # generator
 def bm_generator(X_t, y_t, batch_size):
@@ -147,20 +111,17 @@ def bm_generator(X_t, y_t, batch_size):
             y_batch.append(y_enc)
             val += 1
 
-        # X_batch = integer_encoding(X_batch)
-        # X_batch = pad_sequences(X_batch, maxlen=max_length, padding='post', truncating='post')
-        X_batch = np.asarray(to_cat(X_batch))
-        X_batchT = []
-        for arr in X_batch:
-        	X_batchT.append(arr.T)
-        X_batch = np.asarray(X_batchT)
-        # print(X_batch.shape)
+        X_batch = np.asarray(X_batch)
         y_batch = np.asarray(y_batch)
 
         yield X_batch, y_batch
 
 # batch size
 bs = 256
+
+# test and train generators
+# train_gen = bm_generator(X_train, y_train, bs)
+# test_gen = bm_generator(X_test, y_test, bs)
 
 # num_classes = 1707
 
@@ -170,26 +131,31 @@ def sensitivity(y_true, y_pred):
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     return true_positives / (possible_positives + K.epsilon())
 
+def ResBlock(inp):
+    x = Conv1D(512, (3), padding="same", activation = "relu")(inp)
+    x = BatchNormalization()(x)
+    x = Dropout(0.4)(x)
+    x = Conv1D(512, (3), padding="same", activation = "relu")(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.4)(x)
+    x = Add()([x, inp])
+
+    return x
+
 # Keras NN Model
 def create_model():
-    input_ = Input(shape = (21, max_length,))
+    input_ = Input(shape = (1, 1024,))
+
     x = Conv1D(512, (3), padding="same", activation = "relu")(input_)
     x = BatchNormalization()(x)
     x = Dropout(0.2)(x)
     x = Conv1D(512, (3), padding="same", activation = "relu")(x)
-    x = Dropout(0.2)(x)
-    x = BatchNormalization()(x)
-    x = Flatten()(x)
-    x = Dense(1024, activation = "relu")(x)
     x = BatchNormalization()(x)
     x = Dropout(0.2)(x)
-    x = Dense(1024, activation = "relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
-    x = Dense(1024, activation = "relu")(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.2)(x) 
+    # sequence layers
+    x = LSTM(256, activation = 'tanh')(x)
     out = Dense(num_classes, activation = 'softmax')(x)
+
     classifier = Model(input_, out)
 
     return classifier
@@ -218,11 +184,11 @@ with tf.device('/gpu:0'):
 
         # adam optimizer
         opt = keras.optimizers.Adam(learning_rate = 1e-5)
-        model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
+        model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy'])
 
         # callbacks
-        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cnn_onehot_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
-        reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=10, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
+        mcp_save = keras.callbacks.ModelCheckpoint('saved_models/cln_protbert_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
+        reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=20, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0)
         callbacks_list = [reduce_lr, mcp_save]
 
         # test and train generators
@@ -231,14 +197,9 @@ with tf.device('/gpu:0'):
         train_gen = bm_generator(X_train, y_train, bs)
         val_gen = bm_generator(X_val, y_val, bs)
         history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
-        model = load_model('saved_models/cnn_onehot_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
+        model = load_model('saved_models/cln_protbert_' + str(fold) + '.h5', custom_objects=SeqSelfAttention.get_custom_objects())
 
         # print("Validation")
-        # X_val = np.asarray(to_cat(X_val))
-        # X_valT = []
-        # for arr in X_val:
-        #     X_valT.append(arr.T)
-        # X_val = np.asarray(X_valT)
         # y_pred_val = model.predict(X_val)
         # f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
         # acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
@@ -248,10 +209,6 @@ with tf.device('/gpu:0'):
         # print("Acc Score", val_acc)
 
         print("Testing")
-        X_testT = []
-        for arr in X_test:
-            X_testT.append(arr.T)
-        X_test = np.asarray(X_testT)
         y_pred_test = model.predict(X_test)
         f1_score_test = f1_score(y_test, y_pred_test.argmax(axis=1), average = 'weighted')
         acc_score_test = accuracy_score(y_test, y_pred_test.argmax(axis=1))
@@ -267,8 +224,25 @@ print("Validation Acc Score: " + str(np.mean(val_acc)) + ' +- ' + str(np.std(val
 print("Test F1 Score: " + str(np.mean(test_f1score)) + ' +- ' + str(np.std(test_f1score)))
 print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc)))
 
+# with tf.device('/cpu:0'):
+#     model = load_model('saved_models/rpn_protbert_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
+#     y_pred = model.predict(X_test)
+#     print("Classification Report Validation")
+#     cr = classification_report(y_test, y_pred.argmax(axis=1), output_dict = True)
+#     df = pd.DataFrame(cr).transpose()
+#     df.to_csv('prediction_analysis/CR_CLN_ProtBert.csv')
+#     print("Confusion Matrix")
+#     matrix = confusion_matrix(y_test, y_pred.argmax(axis=1))
+#     print(matrix)
+#     print("F1 Score")
+#     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
+
 '''
-saved_models/cnn_onehot.h5
-F1 Score:  [0.6577087576781159]
-Acc Score [0.6641604010025063]
+/saved_models/cln_protbert.h5 (Beaker - After xhit removal)
+Testing
+F1 Score:  [0.8342605230259114, 0.8333757276107693, 0.836434069886905, 0.8353546687204089, 0.8344326016707645]
+Acc Score [0.8368648894964684, 0.8358395989974937, 0.8382319434951014, 0.8372066529961267, 0.8367509683299157]
+Test F1 Score: 0.8347715181829519 +- 0.0010419553245509066
+Test Acc Score: 0.8369788106630212 +- 0.000772650943623319
+
 '''

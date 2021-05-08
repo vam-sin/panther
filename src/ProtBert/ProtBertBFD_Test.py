@@ -5,12 +5,12 @@ import pandas as pd
 
 embedder = ProtTransBertBFDEmbedder()
 
-ds = pd.read_csv('SSG5_Test_50.csv')
+ds = pd.read_csv('SSG5_Test.csv')
 
 sequences_Example = list(ds["Sequence"])
 num_seq = len(sequences_Example)
 
-i = 11000
+i = 0
 length = 1000
 while i < num_seq:
 	print("Doing", i, num_seq)
@@ -24,7 +24,7 @@ while i < num_seq:
 		embeddings.append(np.mean(np.asarray(embedder.embed(seq)), axis=0))
 
 	s_no = start / length
-	filename = 'ProtBert_Embeddings/' + 'PB_' + str(s_no) + '.npz'
+	filename = 'PB_Test/' + 'PB_' + str(s_no) + '.npz'
 	embeddings = np.asarray(embeddings)
 	# print(embeddings.shape)
 	np.savez_compressed(filename, embeddings)

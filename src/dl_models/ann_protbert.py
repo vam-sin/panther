@@ -44,20 +44,18 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('SSG5_Train_50.csv')
+ds_train = pd.read_csv('SSG5_Train.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = 'SSG5_Train_50.npz'
+filename = 'SSG5_Train_ProtBert.npz'
 X = np.load(filename)['arr_0']
 
-# X = np.expand_dims(X, axis = 1)
-
-ds_test = pd.read_csv('SSG5_Test_50.csv')
+ds_test = pd.read_csv('SSG5_Test.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = 'SSG5_Test_50.npz'
+filename = 'SSG5_Test_ProtBert.npz'
 X_test = np.load(filename)['arr_0']
 
 # X_test = np.expand_dims(X_test, axis = 1)
@@ -151,7 +149,7 @@ def create_model():
 kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
 # training
-num_epochs = 100
+num_epochs = 200
 
 fold = 1
 
@@ -186,14 +184,14 @@ with tf.device('/gpu:0'):
         history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
         model = load_model('saved_models/ann_protbert_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
 
-        print("Validation")
-        y_pred_val = model.predict(X_val)
-        f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
-        acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
-        val_f1score.append(f1_score_val)
-        val_acc.append(acc_score_val)
-        print("F1 Score: ", val_f1score)
-        print("Acc Score", val_acc)
+        # print("Validation")
+        # y_pred_val = model.predict(X_val)
+        # f1_score_val = f1_score(y_val, y_pred_val.argmax(axis=1), average = 'weighted')
+        # acc_score_val = accuracy_score(y_val, y_pred_val.argmax(axis=1))
+        # val_f1score.append(f1_score_val)
+        # val_acc.append(acc_score_val)
+        # print("F1 Score: ", val_f1score)
+        # print("Acc Score", val_acc)
 
         print("Testing")
         y_pred_test = model.predict(X_test)
@@ -224,15 +222,10 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 #     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
-/saved_models/ann_protbert.h5 (beaker)
-Validation
-F1 Score:  [0.9940826619921191, 0.994183214862583, 0.9944536776586806, 0.994512415137856, 0.9937239079900128]
-Acc Score [0.9940939026981092, 0.9941788825154025, 0.9944550669216061, 0.9944763118759294, 0.9937113599184176]
+/saved_models/ann_protbert.h5 (Beaker - After xhit removal)
 Testing
-F1 Score:  [0.8856458755005612, 0.8809748135146995, 0.8832486774459644, 0.8822384746467488, 0.8831970095353298]
-Acc Score [0.8870705096889757, 0.8823481517668132, 0.8844650708353688, 0.8837322911577918, 0.8843836508711936]
-Validation F1 Score: 0.9941911755282502 +- 0.0002836475867241778
-Validation Acc Score: 0.994183104785893 +- 0.00027944654620578924
-Test F1 Score: 0.8830609701286607 +- 0.0015338855742561524
-Test Acc Score: 0.8843999348640287 +- 0.0015357108943627764
+F1 Score:  [0.8509955350337157, 0.8507454152457051, 0.853143960622336, 0.8461305740954098, 0.8504870053903753]
+Acc Score [0.8533834586466166, 0.8532695374800638, 0.8541809068124857, 0.8485987696514012, 0.853155616313511]
+Test F1 Score: 0.8503004980775085 +- 0.002288639678722769
+Test Acc Score: 0.8525176577808157 +- 0.001992285462629216
 '''

@@ -44,18 +44,18 @@ if gpus:
         print(e)
 
 # dataset import 
-ds_train = pd.read_csv('../../data/v4.3/SSG5_Train_50.csv')
+ds_train = pd.read_csv('SSG5_Train.csv')
 
 y = list(ds_train["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Train_50_BioVec.npz'
+filename = 'SSG5_Train_BioVec.npz'
 X = np.load(filename)['arr_0']
 
-ds_test = pd.read_csv('../../data/v4.3/SSG5_Test_50.csv')
+ds_test = pd.read_csv('SSG5_Test.csv')
 
 y_test = list(ds_test["SSG5_Class"])
 
-filename = '../processed_data/SSG5_Test_50_BioVec.npz'
+filename = 'SSG5_Test_BioVec.npz'
 X_test = np.load(filename)['arr_0']
 
 # y process
@@ -147,7 +147,7 @@ def create_model():
 kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
 # training
-num_epochs = 100
+num_epochs = 200
 
 fold = 1
 
@@ -192,7 +192,7 @@ with tf.device('/gpu:0'):
         # print("Acc Score", val_acc)
 
         print("Testing")
-        y_pred_test = model.predict(np.reshape(X_test, (12282, 300)))
+        y_pred_test = model.predict(np.reshape(X_test, (8778, 300)))
         f1_score_test = f1_score(y_test, y_pred_test.argmax(axis=1), average = 'weighted')
         acc_score_test = accuracy_score(y_test, y_pred_test.argmax(axis=1))
         test_f1score.append(f1_score_test)
@@ -220,7 +220,10 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 #     print(f1_score(y_test, y_pred.argmax(axis=1), average = 'weighted'))
 
 '''
-/saved_models/ann_biovec.h5
-Test F1 Score: 0.4392750576183766 +- 0.006300326187570515
-Test Acc Score: 0.45100146555935516 +- 0.006768619434953569
+/saved_models/ann_biovec.h5 (Beaker - After xhit removal)
+Testing
+F1 Score:  [0.5284281788786166, 0.5154530020748822, 0.5299445024171993, 0.5227599533212314, 0.5256606027347925]
+Acc Score [0.5370243791296423, 0.525062656641604, 0.5377079061289588, 0.5297334244702666, 0.532239690134427]
+Test F1 Score: 0.5244492478853444 +- 0.005124124307566618
+Test Acc Score: 0.5323536113009798 +- 0.004701508739102723
 '''
