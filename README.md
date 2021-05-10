@@ -48,7 +48,7 @@ The sequences in this dataset were encoded into vector format using a number of 
 
 | Model      | Accuracy | F1-Score | 
 | ----------- | ----------- | ----------- |
-| ANN   | -         | -         |
+| ANN   | 0.583 ± 0.0050         | 0.575 ± 0.0046         |
 | CNN   | 0.664         | 0.657         |
 | CLN   | 0.378         | 0.368         |
 | ABLN   | -         | -         |
