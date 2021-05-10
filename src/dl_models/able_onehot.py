@@ -174,7 +174,7 @@ def sensitivity(y_true, y_pred):
 
 # Keras NN Model
 def create_model():
-    input_ = Input(shape = (max_length,21,))
+    input_ = Input(shape = (21,max_length,))
     x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(input_)
     x = Dropout(0.2)(x)
     x = Bidirectional(LSTM(256, activation = 'tanh', return_sequences = True))(x)
@@ -183,6 +183,7 @@ def create_model():
     x = Dropout(0.2)(x)
     x = SeqSelfAttention(attention_activation='sigmoid')(x)
     x = Flatten()(x)
+    x = Dense(256, activation = 'relu')(x)
     out = Dense(num_classes, activation = 'softmax')(x)
     classifier = Model(input_, out)
 
@@ -192,7 +193,7 @@ def create_model():
 kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
 
 # training
-num_epochs = 200
+num_epochs = 1
 
 fold = 1
 
@@ -212,7 +213,7 @@ with tf.device('/gpu:0'):
 
         # adam optimizer
         opt = keras.optimizers.Adam(learning_rate = 1e-5)
-        model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy', sensitivity])
+        model.compile(optimizer = "adam", loss = "categorical_crossentropy", metrics=['accuracy'])
 
         # callbacks
         mcp_save = keras.callbacks.ModelCheckpoint('saved_models/able_onehot_' + str(fold) + '.h5', save_best_only=True, monitor='val_accuracy', verbose=1)
@@ -225,7 +226,7 @@ with tf.device('/gpu:0'):
         train_gen = bm_generator(X_train, y_train, bs)
         val_gen = bm_generator(X_val, y_val, bs)
         history = model.fit_generator(train_gen, epochs = num_epochs, steps_per_epoch = math.ceil(len(X_train)/(bs)), verbose=1, validation_data = val_gen, validation_steps = len(X_val)/bs, workers = 0, shuffle = True, callbacks = callbacks_list)
-        model = load_model('saved_models/able_onehot_' + str(fold) + '.h5', custom_objects={'sensitivity':sensitivity})
+        model = load_model('saved_models/able_onehot_' + str(fold) + '.h5', custom_objects=SeqSelfAttention.get_custom_objects())
 
         # print("Validation")
         # X_val = np.asarray(to_cat(X_val))
