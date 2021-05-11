@@ -264,4 +264,7 @@ print("Test Acc Score: " + str(np.mean(test_acc)) + ' +- ' + str(np.std(test_acc
 
 '''
 saved_models/able_onehot.h5
+Testing
+F1 Score:  [0.4207371942584347]
+Acc Score [0.43301435406698563]
 '''
